@@ -21,19 +21,19 @@ if (!fs.existsSync(downloadsDir)) {
 app.use(cors());
 app.use(express.json());
 
+// Handle favicon.ico FIRST before static file middleware to avoid serverless static 500 errors
+app.get('/favicon.ico', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.status(200).send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>');
+});
+
 // Serve static files exclusively from public/ directory for security
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Explicit root route handler for Vercel and serverless deployments
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Handle favicon.ico cleanly with inline SVG icon to eliminate file system dependencies and serverless 500 errors
-app.get('/favicon.ico', (req, res) => {
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.status(200).send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>');
 });
 
 async function fallbackAnalyze(url) {
