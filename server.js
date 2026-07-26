@@ -13,6 +13,10 @@ const isWin = process.platform === 'win32';
 const defaultYtDlp = isWin ? path.join(__dirname, 'downloader.exe') : 'yt-dlp';
 const ytDlpPath = process.env.YTDLP_PATH || (fs.existsSync(defaultYtDlp) ? defaultYtDlp : 'yt-dlp');
 const cookiesPath = path.join(__dirname, 'cookies.txt');
+const downloadsDir = path.join(__dirname, 'downloads');
+if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir, { recursive: true });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -126,13 +130,9 @@ app.get('/download', (req, res) => {
             rawTitle = stdout.trim().replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
         }
         const safeTitle = rawTitle || 'Tanzeel_Video';
+        const downloadId = id || Math.random().toString(36).substring(2, 10);
+        const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
 
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.header('Pragma', 'no-cache');
-        res.header('Expires', '0');
-        res.header('Content-Type', 'video/mp4');
-        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
-        
         const dlArgs = [
             '--no-playlist', 
             '-S', 'vcodec:h264,res,acodec:m4a', 
@@ -144,49 +144,60 @@ app.get('/download', (req, res) => {
         if (fs.existsSync(cookiesPath)) {
             dlArgs.push('--cookies', cookiesPath);
         }
-        dlArgs.push('-o', '-', url);
+        dlArgs.push('-o', tempFilePath, url);
 
         const subprocess = spawn(ytDlpPath, dlArgs);
-        
-        subprocess.stdout.pipe(res);
-        
-        if (id) {
-            progressMap[id] = { percent: 0, size: '0MiB', status: 'Starting...' };
-        }
-        
-        // Clean up process if user cancels HTTP request mid-way
+
+        progressMap[downloadId] = { percent: 0, size: '0MiB', status: 'Starting...' };
+
         req.on('close', () => {
             if (subprocess && !subprocess.killed) {
                 subprocess.kill('SIGTERM');
             }
-            if (id) {
-                delete progressMap[id];
+            if (fs.existsSync(tempFilePath)) {
+                try { fs.unlinkSync(tempFilePath); } catch (e) {}
             }
+            delete progressMap[downloadId];
         });
 
         subprocess.stderr.on('data', (data) => {
             const output = data.toString();
-            if (id) {
-                const match = output.match(/\[download\]\s+([\d\.]+)%\s+of\s+~?\s*([\d\.]+[a-zA-Z]+)(?:\s+at\s+([^\s]+)\s+ETA\s+([^\s]+))?/);
-                if (match) {
-                    progressMap[id] = { 
-                        percent: parseFloat(match[1]), 
-                        size: match[2], 
-                        speed: match[3] || 'Calculating...',
-                        eta: match[4] || 'Calculating...',
-                        status: 'Downloading...' 
-                    };
-                }
+            const match = output.match(/\[download\]\s+([\d\.]+)%\s+of\s+~?\s*([\d\.]+[a-zA-Z]+)(?:\s+at\s+([^\s]+)\s+ETA\s+([^\s]+))?/);
+            if (match) {
+                progressMap[downloadId] = { 
+                    percent: parseFloat(match[1]), 
+                    size: match[2], 
+                    speed: match[3] || 'Calculating...',
+                    eta: match[4] || 'Calculating...',
+                    status: 'Downloading...' 
+                };
             }
         });
 
         subprocess.on('close', (code) => {
-            if (id) {
-                progressMap[id] = { percent: 100, size: progressMap[id]?.size || 'Done', status: 'Complete' };
-                setTimeout(() => delete progressMap[id], 10000); // clear after 10s
-            }
-            if (code !== 0 && !res.headersSent) {
-                res.status(500).send('Failed to download video');
+            if (code === 0 && fs.existsSync(tempFilePath)) {
+                progressMap[downloadId] = { percent: 100, size: progressMap[downloadId]?.size || 'Done', status: 'Complete' };
+                
+                res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                res.header('Pragma', 'no-cache');
+                res.header('Expires', '0');
+                res.header('Content-Type', 'video/mp4');
+                res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
+
+                res.sendFile(tempFilePath, (err) => {
+                    if (fs.existsSync(tempFilePath)) {
+                        try { fs.unlinkSync(tempFilePath); } catch (e) {}
+                    }
+                    setTimeout(() => delete progressMap[downloadId], 5000);
+                });
+            } else {
+                if (!res.headersSent) {
+                    res.status(500).send('Failed to download video');
+                }
+                if (fs.existsSync(tempFilePath)) {
+                    try { fs.unlinkSync(tempFilePath); } catch (e) {}
+                }
+                delete progressMap[downloadId];
             }
         });
     });
