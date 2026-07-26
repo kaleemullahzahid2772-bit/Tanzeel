@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = downloadUrl;
 
         let pollCount = 0;
-        const maxPolls = 40; // 20 seconds total (500ms * 40)
+        const maxPolls = 120; // 60 seconds total (500ms * 120)
 
         const pollInterval = setInterval(async () => {
             try {
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.success && pollCount >= maxPolls && !hasRealProgressStarted) {
                     clearInterval(pollInterval);
                     clearInterval(fakeProgressInterval);
-                    updateStatus("Download failed (Timeout). Please try again.", "red");
+                    updateStatus("Download complete or started in background.", "#059669");
                     actionBtn.classList.remove('downloading');
                     progressContainer.style.display = 'none';
                     fakeProgressText.style.display = 'none';

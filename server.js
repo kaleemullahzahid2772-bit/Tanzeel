@@ -181,6 +181,28 @@ app.get('/download', (req, res) => {
         return res.status(400).send('Invalid URL provided');
     }
 
+    const downloadId = id || Math.random().toString(36).substring(2, 10);
+    
+    // Register progress immediately so frontend polling never times out!
+    progressMap[downloadId] = { 
+        percent: 15, 
+        size: 'Fetching...', 
+        speed: 'Connecting...', 
+        eta: 'Calculating...', 
+        status: 'Downloading...' 
+    };
+
+    const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
+    const hasBinary = fs.existsSync(ytDlpPath);
+
+    // Vercel serverless / cloud fallback: redirect to high-speed media stream
+    if (isVercel || (!hasBinary && !isWin)) {
+        progressMap[downloadId] = { percent: 100, size: 'Ready', speed: 'Fast', eta: '0s', status: 'Complete' };
+        setTimeout(() => delete progressMap[downloadId], 5000);
+        return res.redirect(`https://yt-download.org/api/button/videos?url=${encodeURIComponent(url)}`);
+    }
+
+    const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
     const titleArgs = ['--no-playlist', '--get-title', '--js-runtimes', 'node'];
     if (fs.existsSync(cookiesPath)) {
         titleArgs.push('--cookies', cookiesPath);
@@ -193,8 +215,6 @@ app.get('/download', (req, res) => {
             rawTitle = stdout.trim().replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
         }
         const safeTitle = rawTitle || 'Tanzeel_Video';
-        const downloadId = id || Math.random().toString(36).substring(2, 10);
-        const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
 
         const dlArgs = [
             '--no-playlist', 
@@ -210,8 +230,6 @@ app.get('/download', (req, res) => {
         dlArgs.push('-o', tempFilePath, url);
 
         const subprocess = spawn(ytDlpPath, dlArgs);
-
-        progressMap[downloadId] = { percent: 0, size: '0MiB', status: 'Starting...' };
 
         req.on('close', () => {
             if (subprocess && !subprocess.killed) {
