@@ -29,14 +29,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Handle favicon.ico to prevent 404 browser log errors
+// Handle favicon.ico cleanly with inline SVG icon to eliminate file system dependencies and serverless 500 errors
 app.get('/favicon.ico', (req, res) => {
-    const iconPath = path.join(__dirname, 'public', 'favicon.ico');
-    if (fs.existsSync(iconPath)) {
-        res.sendFile(iconPath);
-    } else {
-        res.status(204).end();
-    }
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.status(200).send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>');
 });
 
 async function fallbackAnalyze(url) {
