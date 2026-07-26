@@ -183,12 +183,23 @@ function extractYouTubeId(url) {
 
 function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
     try {
-        https.get(streamUrl, (videoRes) => {
+        const parsedUrl = new URL(streamUrl);
+        const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*'
+            }
+        };
+
+        https.get(options, (videoRes) => {
             if (videoRes.statusCode === 301 || videoRes.statusCode === 302 || videoRes.statusCode === 307) {
                 const redirectUrl = videoRes.headers.location;
                 if (redirectUrl) return proxyVideoStream(redirectUrl, safeTitle, res, downloadId);
             }
-            if (videoRes.statusCode !== 200) {
+            if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
+                console.error('Stream proxy HTTP status error:', videoRes.statusCode);
                 if (!res.headersSent) res.status(500).send('Unable to stream video');
                 if (downloadId) delete progressMap[downloadId];
                 return;
@@ -208,7 +219,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             
             videoRes.pipe(res);
         }).on('error', (err) => {
-            console.error('Stream proxy error:', err);
+            console.error('Stream proxy network error:', err);
             if (!res.headersSent) res.status(500).send('Stream error');
             if (downloadId) delete progressMap[downloadId];
         });
@@ -216,6 +227,49 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
         console.error('Proxy exception:', err);
         if (!res.headersSent) res.status(500).send('Stream exception');
         if (downloadId) delete progressMap[downloadId];
+    }
+}
+
+async function getCobaltDirectStream(videoUrl) {
+    try {
+        const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264' });
+        const options = {
+            hostname: 'api.cobalt.tools',
+            port: 443,
+            path: '/api/json',
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        return new Promise((resolve) => {
+            const req = https.request(options, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(body);
+                        if (json && (json.url || json.picker)) {
+                            const directUrl = json.url || (json.picker && json.picker[0] ? json.picker[0].url : null);
+                            resolve(directUrl);
+                        } else {
+                            resolve(null);
+                        }
+                    } catch (e) {
+                        resolve(null);
+                    }
+                });
+            });
+            req.on('error', () => resolve(null));
+            req.write(postData);
+            req.end();
+        });
+    } catch (e) {
+        return null;
     }
 }
 
@@ -246,7 +300,7 @@ app.get('/download', async (req, res) => {
 
     const downloadId = id || Math.random().toString(36).substring(2, 10);
     
-    // Register progress immediately so frontend polling never times out!
+    // Register progress immediately
     progressMap[downloadId] = { 
         percent: 15, 
         size: 'Fetching...', 
@@ -258,8 +312,15 @@ app.get('/download', async (req, res) => {
     const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
     const hasBinary = fs.existsSync(ytDlpPath);
 
-    // Vercel serverless / cloud fallback: Direct proxy stream inside www.tanzeel.pro without external redirects!
+    // Vercel serverless / cloud fallback: Direct MP4 stream proxying with browser User-Agent
     if (isVercel || (!hasBinary && !isWin)) {
+        // Try Cobalt high-speed stream engine first
+        const cobaltStreamUrl = await getCobaltDirectStream(url);
+        if (cobaltStreamUrl) {
+            return proxyVideoStream(cobaltStreamUrl, 'Tanzeel_Video', res, downloadId);
+        }
+
+        // Try Invidious video stream engine
         const videoId = extractYouTubeId(url);
         if (videoId) {
             const streamInfo = await getInvidiousDirectStreamUrl(videoId);
@@ -269,12 +330,9 @@ app.get('/download', async (req, res) => {
                 return proxyVideoStream(streamInfo.url, safeTitle || 'Tanzeel_Video', res, downloadId);
             }
         }
-        progressMap[downloadId] = { percent: 100, size: 'Ready', speed: 'Fast', eta: '0s', status: 'Complete' };
-        setTimeout(() => delete progressMap[downloadId], 5000);
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.header('Content-Type', 'video/mp4');
-        res.header('Content-Disposition', `attachment; filename="Tanzeel_Video.mp4"`);
-        return res.status(200).send(Buffer.from('Video Stream Processing'));
+
+        if (downloadId) delete progressMap[downloadId];
+        return res.status(500).send('Unable to resolve video stream');
     }
 
     const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
