@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: tanzeel-video-downloader
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3000

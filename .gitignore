@@ -1,0 +1,8 @@
+node_modules/
+cookies.txt
+downloader.exe
+ffmpeg*
+downloads/
+*-player-script.js
+null
+coverage/

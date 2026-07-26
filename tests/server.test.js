@@ -1,0 +1,67 @@
+const request = require('supertest');
+const app = require('../server');
+
+describe('Server Security & API Integration Tests', () => {
+    
+    describe('Security Isolation Tests', () => {
+        it('should NOT allow access to sensitive root cookies.txt file', async () => {
+            const res = await request(app).get('/cookies.txt');
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('should NOT allow access to server source code server.js', async () => {
+            const res = await request(app).get('/server.js');
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('should NOT allow access to root package.json', async () => {
+            const res = await request(app).get('/package.json');
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('should allow access to public static assets (index.html)', async () => {
+            const res = await request(app).get('/');
+            expect(res.statusCode).toBe(200);
+            expect(res.headers['content-type']).toMatch(/html/);
+        });
+    });
+
+    describe('/analyze Endpoint', () => {
+        it('should return 400 Bad Request when no URL is provided', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .send({});
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body).toEqual({
+                success: false,
+                message: 'Invalid URL provided'
+            });
+        });
+
+        it('should return 400 Bad Request when invalid data type is provided for URL', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .send({ url: 12345 });
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+    });
+
+    describe('/download Endpoint', () => {
+        it('should return 400 Bad Request when url parameter is missing', async () => {
+            const res = await request(app).get('/download');
+            expect(res.statusCode).toBe(400);
+            expect(res.text).toContain('Invalid URL provided');
+        });
+    });
+
+    describe('/progress Endpoint', () => {
+        it('should return success: false for non-existent progress id', async () => {
+            const res = await request(app).get('/progress?id=invalid_id_999');
+            expect(res.statusCode).toBe(200);
+            expect(res.body).toEqual({ success: false });
+        });
+    });
+});
