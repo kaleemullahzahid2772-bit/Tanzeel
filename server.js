@@ -206,9 +206,14 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             }
 
             const cleanTitle = (safeTitle || 'Tanzeel_Video').replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_') || 'Tanzeel_Video';
+            const upstreamType = videoRes.headers['content-type'] || 'video/mp4';
+            let ext = 'mp4';
+            if (upstreamType.includes('webm')) ext = 'webm';
+            if (upstreamType.includes('mkv')) ext = 'mkv';
+
             res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.header('Content-Type', 'video/mp4');
-            res.header('Content-Disposition', `attachment; filename="${cleanTitle}.mp4"`);
+            res.header('Content-Type', upstreamType);
+            res.header('Content-Disposition', `attachment; filename="${cleanTitle}.${ext}"`);
             if (videoRes.headers['content-length']) {
                 res.header('Content-Length', videoRes.headers['content-length']);
             }
@@ -233,7 +238,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
 
 async function getCobaltDirectStream(videoUrl) {
     try {
-        const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264' });
+        const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264', videoQuality: '720' });
         const options = {
             hostname: 'api.cobalt.tools',
             port: 443,
@@ -283,11 +288,11 @@ async function getPipedDirectStreamUrl(videoId) {
     for (const instUrl of pipedInstances) {
         const data = await httpsGetJson(instUrl);
         if (data && data.videoStreams && data.videoStreams.length > 0) {
-            const mp4Stream = data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4') && s.hasAudio) ||
-                              data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4')) ||
-                              data.videoStreams[0];
-            if (mp4Stream && mp4Stream.url) {
-                return { url: mp4Stream.url, title: data.title };
+            const combinedMp4 = data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4') && s.hasAudio) ||
+                                data.videoStreams.find(s => s.quality === '720p' && s.hasAudio) ||
+                                data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4'));
+            if (combinedMp4 && combinedMp4.url) {
+                return { url: combinedMp4.url, title: data.title };
             }
         }
     }
@@ -303,9 +308,13 @@ async function getInvidiousDirectStreamUrl(videoId) {
     for (const instUrl of instances) {
         const data = await httpsGetJson(instUrl);
         if (data && data.formatStreams && data.formatStreams.length > 0) {
-            const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || (s.type && s.type.includes('mp4'))) || data.formatStreams[0];
-            if (mp4Stream && mp4Stream.url) {
-                return { url: mp4Stream.url, title: data.title };
+            // Prioritize itag 22 (720p combined MP4 H264/AAC) or itag 18 (360p combined MP4 H264/AAC)
+            const combinedMp4 = data.formatStreams.find(s => String(s.itag) === '22') ||
+                                data.formatStreams.find(s => String(s.itag) === '18') ||
+                                data.formatStreams.find(s => s.container === 'mp4' && s.encoding === 'h264') ||
+                                data.formatStreams.find(s => s.container === 'mp4');
+            if (combinedMp4 && combinedMp4.url) {
+                return { url: combinedMp4.url, title: data.title };
             }
         }
     }
