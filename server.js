@@ -20,6 +20,9 @@ app.use(express.json());
 // Serve static files exclusively from public/ directory for security
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Handle favicon.ico to prevent 404 browser log errors
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 app.post('/analyze', (req, res) => {
     const { url } = req.body;
     
