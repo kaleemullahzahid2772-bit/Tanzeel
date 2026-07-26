@@ -2,14 +2,34 @@
   "version": 2,
   "builds": [
     {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    },
+    {
       "src": "server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/analyze",
       "dest": "/server.js"
+    },
+    {
+      "src": "/progress",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/download",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/public/favicon.ico"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
   ]
 }
