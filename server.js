@@ -21,7 +21,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle favicon.ico to prevent 404 browser log errors
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.get('/favicon.ico', (req, res) => {
+    const iconPath = path.join(__dirname, 'public', 'favicon.ico');
+    if (fs.existsSync(iconPath)) {
+        res.sendFile(iconPath);
+    } else {
+        res.status(204).end();
+    }
+});
 
 app.post('/analyze', (req, res) => {
     const { url } = req.body;
