@@ -2,8 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const { spawn, execFile } = require('child_process');
 const path = require('path');
-const ffmpeg = require('ffmpeg-static');
 const fs = require('fs');
+const os = require('os');
+
+let ffmpeg = null;
+try {
+    ffmpeg = require('ffmpeg-static');
+} catch (e) {
+    console.warn('ffmpeg-static module load warning:', e.message);
+}
 
 const progressMap = {};
 
@@ -11,11 +18,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isWin = process.platform === 'win32';
 const defaultYtDlp = isWin ? path.join(__dirname, 'downloader.exe') : 'yt-dlp';
-const ytDlpPath = process.env.YTDLP_PATH || (fs.existsSync(defaultYtDlp) ? defaultYtDlp : 'yt-dlp');
+let ytDlpPath = process.env.YTDLP_PATH || 'yt-dlp';
+try {
+    if (isWin && fs.existsSync(defaultYtDlp)) {
+        ytDlpPath = defaultYtDlp;
+    }
+} catch (e) {}
+
 const cookiesPath = path.join(__dirname, 'cookies.txt');
-const downloadsDir = path.join(__dirname, 'downloads');
-if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir, { recursive: true });
+const downloadsDir = path.join(os.tmpdir(), 'tanzeel_downloads');
+try {
+    if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+    }
+} catch (e) {
+    console.warn('Failed to create tmp downloads directory:', e.message);
 }
 
 app.use(cors());
