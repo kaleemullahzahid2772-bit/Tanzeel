@@ -66,34 +66,49 @@ app.post('/analyze', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid URL provided' });
         }
 
+        // On Vercel / serverless cloud environment where binary is missing, use instant API fallback
+        const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
+        const hasBinary = fs.existsSync(ytDlpPath);
+
+        if (isVercel || (!hasBinary && !isWin)) {
+            const fallbackResult = await fallbackAnalyze(url);
+            return res.json(fallbackResult);
+        }
+
         const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
         if (fs.existsSync(cookiesPath)) {
             args.push('--cookies', cookiesPath);
         }
         args.push(url);
         
-        execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
-            if (error || !stdout) {
-                console.warn('yt-dlp execFile warning, using lightweight fallback:', error ? error.message : 'no stdout');
-                if (stderr && stderr.includes('Please sign in')) {
-                    return res.status(400).json({ success: false, message: 'This video is age-restricted or private.' });
+        try {
+            execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
+                if (error || !stdout) {
+                    console.warn('yt-dlp execFile warning, using lightweight fallback:', error ? error.message : 'no stdout');
+                    if (stderr && stderr.includes('Please sign in')) {
+                        return res.status(400).json({ success: false, message: 'This video is age-restricted or private.' });
+                    }
+                    const fallbackResult = await fallbackAnalyze(url);
+                    return res.json(fallbackResult);
                 }
-                const fallbackResult = await fallbackAnalyze(url);
-                return res.json(fallbackResult);
-            }
-            try {
-                const info = JSON.parse(stdout);
-                return res.json({
-                    success: true,
-                    platform: info.extractor ? (info.extractor.charAt(0).toUpperCase() + info.extractor.slice(1)) : 'Video Platform',
-                    title: info.title || 'Video',
-                    qualities: [{ quality: 'Auto (Best available)' }]
-                });
-            } catch (e) {
-                const fallbackResult = await fallbackAnalyze(url);
-                return res.json(fallbackResult);
-            }
-        });
+                try {
+                    const info = JSON.parse(stdout);
+                    return res.json({
+                        success: true,
+                        platform: info.extractor ? (info.extractor.charAt(0).toUpperCase() + info.extractor.slice(1)) : 'Video Platform',
+                        title: info.title || 'Video',
+                        qualities: [{ quality: 'Auto (Best available)' }]
+                    });
+                } catch (e) {
+                    const fallbackResult = await fallbackAnalyze(url);
+                    return res.json(fallbackResult);
+                }
+            });
+        } catch (execErr) {
+            console.warn('execFile synchronous exception:', execErr);
+            const fallbackResult = await fallbackAnalyze(url);
+            return res.json(fallbackResult);
+        }
     } catch (err) {
         console.error('Analyze route error:', err);
         const fallbackResult = await fallbackAnalyze(req.body ? req.body.url : '');
