@@ -32,23 +32,41 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-async function fallbackAnalyze(url) {
-    try {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) {
-            const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-            const response = await fetch(oembedUrl);
-            if (response.ok) {
-                const data = await response.json();
-                return {
-                    success: true,
-                    platform: 'YouTube',
-                    title: data.title || 'YouTube Video',
-                    qualities: [{ quality: 'Auto (Best available)' }]
-                };
-            }
+const https = require('https');
+
+function httpsGetJson(url) {
+    return new Promise((resolve) => {
+        try {
+            https.get(url, (res) => {
+                if (res.statusCode !== 200) return resolve(null);
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(body));
+                    } catch (e) {
+                        resolve(null);
+                    }
+                });
+            }).on('error', () => resolve(null));
+        } catch (e) {
+            resolve(null);
         }
-    } catch (e) {
-        console.error('Fallback analyze error:', e);
+    });
+}
+
+async function fallbackAnalyze(url) {
+    if (url && typeof url === 'string' && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const data = await httpsGetJson(oembedUrl);
+        if (data && data.title) {
+            return {
+                success: true,
+                platform: 'YouTube',
+                title: data.title,
+                qualities: [{ quality: 'Auto (Best available)' }]
+            };
+        }
     }
     return {
         success: true,
