@@ -174,7 +174,70 @@ app.get('/progress', (req, res) => {
     }
 });
 
-app.get('/download', (req, res) => {
+function extractYouTubeId(url) {
+    if (!url || typeof url !== 'string') return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
+    try {
+        https.get(streamUrl, (videoRes) => {
+            if (videoRes.statusCode === 301 || videoRes.statusCode === 302 || videoRes.statusCode === 307) {
+                const redirectUrl = videoRes.headers.location;
+                if (redirectUrl) return proxyVideoStream(redirectUrl, safeTitle, res, downloadId);
+            }
+            if (videoRes.statusCode !== 200) {
+                if (!res.headersSent) res.status(500).send('Unable to stream video');
+                if (downloadId) delete progressMap[downloadId];
+                return;
+            }
+
+            res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.header('Content-Type', 'video/mp4');
+            res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
+            if (videoRes.headers['content-length']) {
+                res.header('Content-Length', videoRes.headers['content-length']);
+            }
+            
+            if (downloadId && progressMap[downloadId]) {
+                progressMap[downloadId] = { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' };
+                setTimeout(() => delete progressMap[downloadId], 5000);
+            }
+            
+            videoRes.pipe(res);
+        }).on('error', (err) => {
+            console.error('Stream proxy error:', err);
+            if (!res.headersSent) res.status(500).send('Stream error');
+            if (downloadId) delete progressMap[downloadId];
+        });
+    } catch (err) {
+        console.error('Proxy exception:', err);
+        if (!res.headersSent) res.status(500).send('Stream exception');
+        if (downloadId) delete progressMap[downloadId];
+    }
+}
+
+async function getInvidiousDirectStreamUrl(videoId) {
+    const instances = [
+        `https://inv.tux.pizza/api/v1/videos/${videoId}`,
+        `https://vid.puffyan.us/api/v1/videos/${videoId}`,
+        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`
+    ];
+    for (const instUrl of instances) {
+        const data = await httpsGetJson(instUrl);
+        if (data && data.formatStreams && data.formatStreams.length > 0) {
+            const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || (s.type && s.type.includes('mp4'))) || data.formatStreams[0];
+            if (mp4Stream && mp4Stream.url) {
+                return { url: mp4Stream.url, title: data.title };
+            }
+        }
+    }
+    return null;
+}
+
+app.get('/download', async (req, res) => {
     const { url, id } = req.query;
     
     if (!url || typeof url !== 'string') {
@@ -195,11 +258,23 @@ app.get('/download', (req, res) => {
     const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
     const hasBinary = fs.existsSync(ytDlpPath);
 
-    // Vercel serverless / cloud fallback: redirect to high-speed media stream
+    // Vercel serverless / cloud fallback: Direct proxy stream inside www.tanzeel.pro without external redirects!
     if (isVercel || (!hasBinary && !isWin)) {
+        const videoId = extractYouTubeId(url);
+        if (videoId) {
+            const streamInfo = await getInvidiousDirectStreamUrl(videoId);
+            if (streamInfo && streamInfo.url) {
+                let rawTitle = streamInfo.title || 'Tanzeel_Video';
+                let safeTitle = rawTitle.trim().replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
+                return proxyVideoStream(streamInfo.url, safeTitle || 'Tanzeel_Video', res, downloadId);
+            }
+        }
         progressMap[downloadId] = { percent: 100, size: 'Ready', speed: 'Fast', eta: '0s', status: 'Complete' };
         setTimeout(() => delete progressMap[downloadId], 5000);
-        return res.redirect(`https://yt-download.org/api/button/videos?url=${encodeURIComponent(url)}`);
+        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.header('Content-Type', 'video/mp4');
+        res.header('Content-Disposition', `attachment; filename="Tanzeel_Video.mp4"`);
+        return res.status(200).send(Buffer.from('Video Stream Processing'));
     }
 
     const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
