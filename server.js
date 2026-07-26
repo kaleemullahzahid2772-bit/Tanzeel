@@ -46,8 +46,14 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
-// Handle favicon.ico cleanly to avoid serverless errors
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+// Handle favicon.ico cleanly to avoid serverless 404 errors
+app.get('/favicon.ico', (req, res) => {
+    const iconPath = path.join(__dirname, 'public', 'favicon.ico');
+    if (fs.existsSync(iconPath)) {
+        return res.sendFile(iconPath);
+    }
+    return res.status(204).end();
+});
 
 // Serve static files exclusively from public/ directory for security
 app.use(express.static(path.join(__dirname, 'public')));
