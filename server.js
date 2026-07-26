@@ -130,13 +130,14 @@ app.get('/download', (req, res) => {
         res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.header('Pragma', 'no-cache');
         res.header('Expires', '0');
-        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mkv"`);
+        res.header('Content-Type', 'video/mp4');
+        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
         
         const dlArgs = [
             '--no-playlist', 
             '-S', 'vcodec:h264,res,acodec:m4a', 
-            '-f', 'bestvideo+bestaudio/best', 
-            '--merge-output-format', 'mkv', 
+            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 
+            '--merge-output-format', 'mp4', 
             '--ffmpeg-location', ffmpeg, 
             '--js-runtimes', 'node'
         ];
