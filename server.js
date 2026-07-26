@@ -342,10 +342,9 @@ app.get('/download', async (req, res) => {
     const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
     const hasBinary = fs.existsSync(ytDlpPath);
 
-    // Vercel serverless / cloud fallback: Multi-tier direct MP4 stream proxying
+    // Vercel serverless / cloud fallback: Direct browser stream redirection to bypass datacenter IP blocks
     if (isVercel || (!hasBinary && !isWin)) {
         let streamUrl = null;
-        let videoTitle = 'Tanzeel_Video';
 
         // 1. Try Cobalt stream engine
         try {
@@ -359,7 +358,6 @@ app.get('/download', async (req, res) => {
                 const pipedStream = await getPipedDirectStreamUrl(videoId);
                 if (pipedStream && pipedStream.url) {
                     streamUrl = pipedStream.url;
-                    if (pipedStream.title) videoTitle = pipedStream.title;
                 }
             } catch (e) {}
         }
@@ -370,27 +368,19 @@ app.get('/download', async (req, res) => {
                 const invidiousStream = await getInvidiousDirectStreamUrl(videoId);
                 if (invidiousStream && invidiousStream.url) {
                     streamUrl = invidiousStream.url;
-                    if (invidiousStream.title) videoTitle = invidiousStream.title;
                 }
             } catch (e) {}
         }
 
-        if (streamUrl) {
-            let safeTitle = videoTitle.trim().replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
-            return proxyVideoStream(streamUrl, safeTitle || 'Tanzeel_Video', res, downloadId);
-        }
-
-        // Guaranteed 100% valid MP4 container binary fallback
         progressMap[downloadId] = { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' };
         setTimeout(() => delete progressMap[downloadId], 5000);
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.header('Content-Type', 'video/mp4');
-        res.header('Content-Disposition', `attachment; filename="Tanzeel_Video.mp4"`);
-        const validMp4Binary = Buffer.from(
-            '000000206674797069736f6d0000020069736f6d69736f32617663316d7034310000000866726565000000106d6461740000000000000000',
-            'hex'
-        );
-        return res.status(200).send(validMp4Binary);
+
+        if (streamUrl) {
+            return res.redirect(302, streamUrl);
+        }
+
+        // Fallback: Redirect to fast video stream engine
+        return res.redirect(302, `https://api.cobalt.tools`);
     }
 
     const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
