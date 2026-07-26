@@ -20,6 +20,11 @@ app.use(express.json());
 // Serve static files exclusively from public/ directory for security
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Explicit root route handler for Vercel and serverless deployments
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Handle favicon.ico to prevent 404 browser log errors
 app.get('/favicon.ico', (req, res) => {
     const iconPath = path.join(__dirname, 'public', 'favicon.ico');
