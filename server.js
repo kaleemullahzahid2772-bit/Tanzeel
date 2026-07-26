@@ -59,40 +59,46 @@ async function fallbackAnalyze(url) {
 }
 
 app.post('/analyze', async (req, res) => {
-    const { url } = req.body;
-    
-    if (!url || typeof url !== 'string') {
-        return res.status(400).json({ success: false, message: 'Invalid URL provided' });
-    }
+    try {
+        const { url } = req.body || {};
+        
+        if (!url || typeof url !== 'string') {
+            return res.status(400).json({ success: false, message: 'Invalid URL provided' });
+        }
 
-    const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
-    if (fs.existsSync(cookiesPath)) {
-        args.push('--cookies', cookiesPath);
-    }
-    args.push(url);
-    
-    execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
-        if (error) {
-            console.warn('yt-dlp execFile failed, using lightweight fallback:', stderr || error.message);
-            if (stderr && stderr.includes('Please sign in')) {
-                return res.status(400).json({ success: false, message: 'This video is age-restricted or private.' });
+        const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
+        if (fs.existsSync(cookiesPath)) {
+            args.push('--cookies', cookiesPath);
+        }
+        args.push(url);
+        
+        execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
+            if (error || !stdout) {
+                console.warn('yt-dlp execFile warning, using lightweight fallback:', error ? error.message : 'no stdout');
+                if (stderr && stderr.includes('Please sign in')) {
+                    return res.status(400).json({ success: false, message: 'This video is age-restricted or private.' });
+                }
+                const fallbackResult = await fallbackAnalyze(url);
+                return res.json(fallbackResult);
             }
-            const fallbackResult = await fallbackAnalyze(url);
-            return res.json(fallbackResult);
-        }
-        try {
-            const info = JSON.parse(stdout);
-            res.json({
-                success: true,
-                platform: info.extractor ? (info.extractor.charAt(0).toUpperCase() + info.extractor.slice(1)) : 'Video Platform',
-                title: info.title || 'Video',
-                qualities: [{ quality: 'Auto (Best available)' }]
-            });
-        } catch (e) {
-            const fallbackResult = await fallbackAnalyze(url);
-            res.json(fallbackResult);
-        }
-    });
+            try {
+                const info = JSON.parse(stdout);
+                return res.json({
+                    success: true,
+                    platform: info.extractor ? (info.extractor.charAt(0).toUpperCase() + info.extractor.slice(1)) : 'Video Platform',
+                    title: info.title || 'Video',
+                    qualities: [{ quality: 'Auto (Best available)' }]
+                });
+            } catch (e) {
+                const fallbackResult = await fallbackAnalyze(url);
+                return res.json(fallbackResult);
+            }
+        });
+    } catch (err) {
+        console.error('Analyze route error:', err);
+        const fallbackResult = await fallbackAnalyze(req.body ? req.body.url : '');
+        return res.json(fallbackResult);
+    }
 });
 
 app.get('/progress', (req, res) => {

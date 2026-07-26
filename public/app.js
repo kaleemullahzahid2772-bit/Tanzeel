@@ -22,17 +22,28 @@ document.addEventListener('DOMContentLoaded', () => {
         appStatus.style.color = color;
     };
 
-    // Real API Call
+    // Real API Call with safe JSON parsing
     const analyzeLink = async (url) => {
-        const response = await fetch("/analyze", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ url })
-        });
-        const data = await response.json();
-        return data;
+        try {
+            const response = await fetch("/analyze", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ url })
+            });
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return await response.json();
+            } else {
+                const text = await response.text();
+                console.warn("Non-JSON server response:", text);
+                return { success: false, message: "Server temporary unavailable. Please try again." };
+            }
+        } catch (e) {
+            console.error("Network request error:", e);
+            return { success: false, message: "Network connection error." };
+        }
     };
 
     const performAnalysis = async (url) => {
