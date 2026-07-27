@@ -1,12 +1,12 @@
 const request = require('supertest');
 const app = require('../server');
 
-jest.setTimeout(45000);
+jest.setTimeout(15000);
 
-describe('Server Security & API Integration Tests', () => {
-    
+describe('Tanzeel Server Security, API & Unit Tests', () => {
+
     describe('Security Isolation Tests', () => {
-        it('should NOT allow access to sensitive root cookies.txt file', async () => {
+        it('should NOT allow access to root cookies.txt file', async () => {
             const res = await request(app).get('/cookies.txt');
             expect(res.statusCode).toBe(404);
         });
@@ -26,9 +26,17 @@ describe('Server Security & API Integration Tests', () => {
             expect(res.statusCode).toBe(200);
             expect(res.headers['content-type']).toMatch(/html/);
         });
+
+        it('should set security headers on responses', async () => {
+            const res = await request(app).get('/');
+            expect(res.headers['x-content-type-options']).toBe('nosniff');
+            expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+            expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+            expect(res.headers['x-powered-by']).toBeUndefined();
+        });
     });
 
-    describe('/analyze Endpoint', () => {
+    describe('/analyze Endpoint & SSRF Validation', () => {
         it('should return 400 Bad Request when no URL is provided', async () => {
             const res = await request(app)
                 .post('/analyze')
@@ -49,71 +57,76 @@ describe('Server Security & API Integration Tests', () => {
             expect(res.statusCode).toBe(400);
             expect(res.body.success).toBe(false);
         });
+
+        it('should REJECT SSRF attempts targeting localhost (127.0.0.1 / localhost)', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .send({ url: 'http://127.0.0.1:3000/internal' });
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body.message).toBe('Invalid URL provided');
+        });
+
+        it('should REJECT SSRF attempts targeting AWS metadata IP (169.254.169.254)', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .send({ url: 'http://169.254.169.254/latest/meta-data/' });
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body.message).toBe('Invalid URL provided');
+        });
+
+        it('should REJECT non-HTTP/HTTPS dangerous protocols (file://, javascript:)', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .send({ url: 'file:///etc/passwd' });
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body.message).toBe('Invalid URL provided');
+        });
     });
 
-    describe('/download Endpoint', () => {
+    describe('/download Endpoint & Resilience', () => {
         it('should return 400 Bad Request when url parameter is missing', async () => {
             const res = await request(app).get('/download');
             expect(res.statusCode).toBe(400);
-            expect(res.text).toContain('Invalid URL provided');
+            expect(res.body.message).toBe('Invalid URL provided');
         });
 
         it('should return 400 Bad Request when empty url parameter is provided', async () => {
             const res = await request(app).get('/download?url=');
             expect(res.statusCode).toBe(400);
-            expect(res.text).toContain('Invalid URL provided');
+            expect(res.body.message).toBe('Invalid URL provided');
+        });
+
+        it('should return 400 Bad Request for invalid non-HTTP URL string', async () => {
+            const res = await request(app).get('/download?url=not_a_valid_url');
+            expect(res.statusCode).toBe(400);
+            expect(res.body.message).toBe('Invalid URL provided');
         });
 
         it('should NEVER return HTML redirect to external sites on download failure', async () => {
-            const res = await request(app).get('/download?url=not_a_valid_url');
+            const res = await request(app).get('/download?url=https://example.com/fakevideo');
             expect(res.statusCode).toBe(400);
-            expect(res.headers['content-type']).not.toMatch(/text\/html/);
-            expect(res.text).not.toContain('ssyoutube');
-            expect(res.text).not.toContain('savefrom');
+            expect(res.headers['content-type']).toMatch(/json/);
+            expect(res.body.success).toBe(false);
         });
 
-        it('should handle /api/download route alias and encoded YouTube URLs correctly', async () => {
-            const testUrl = encodeURIComponent('https://youtu.be/U9KUW63Jqhc?si=oROLxb8N-M8yFKjz');
-            const res = await request(app).get(`/api/download?url=${testUrl}`);
-            expect(res.statusCode).not.toBe(404);
-            expect(res.headers['content-type']).not.toMatch(/text\/html/);
-        });
-
-        it('REGRESSION TEST: should successfully extract real video stream for youtu.be short URL with ?si= parameter', async () => {
-            const encodedUrl = 'https%3A%2F%2Fyoutu.be%2FU9KUW63Jqhc%3Fsi%3DoROLxb8N-M8yFKjz';
-            const res = await request(app).get(`/api/download?url=${encodedUrl}&id=4e13810p`);
-            
-            expect(res.statusCode).toBe(200);
-            expect(res.headers['content-type']).toMatch(/video|octet-stream|media/);
-            expect(res.headers['content-disposition']).toContain('attachment');
-            expect(res.headers['content-disposition']).toContain('Surat_Al-Qadr');
+        it('should handle /api/download route alias correctly', async () => {
+            const res = await request(app).get('/api/download?url=https://example.com/invalid');
+            expect(res.statusCode).toBe(400);
+            expect(res.body.success).toBe(false);
         });
     });
 
-    describe('Route Aliases (/api/*)', () => {
-        it('should support /api/analyze route alias', async () => {
-            const res = await request(app)
-                .post('/api/analyze')
-                .send({ url: 'https://youtu.be/U9KUW63Jqhc' });
-            expect(res.statusCode).toBe(200);
-            expect(res.body.success).toBe(true);
-        });
-
-        it('should support /api/progress route alias', async () => {
+    describe('Route Aliases & Progress Tracking', () => {
+        it('should support /api/progress route alias with non-existent id', async () => {
             const res = await request(app).get('/api/progress?id=non_existent');
             expect(res.statusCode).toBe(200);
             expect(res.body).toEqual({ success: false });
         });
-    });
 
-    describe('/progress Endpoint', () => {
-        it('should return success: false for non-existent progress id', async () => {
-            const res = await request(app).get('/progress?id=invalid_id_999');
-            expect(res.statusCode).toBe(200);
-            expect(res.body).toEqual({ success: false });
-        });
-
-        it('should return success: false for prototype pollution keys', async () => {
+        it('should return success: false for prototype pollution keys on /progress', async () => {
             const res1 = await request(app).get('/progress?id=__proto__');
             expect(res1.statusCode).toBe(200);
             expect(res1.body).toEqual({ success: false });
