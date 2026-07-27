@@ -63,6 +63,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    let lastAnalyzedTitle = 'Tanzeel Video';
+
+    const renderDownloadOptions = (videoTitle, downloadUrl) => {
+        if (!resultsPanel || !optionsList) return;
+        optionsList.innerHTML = `
+            <a href="${downloadUrl}" download target="_blank" rel="noopener" class="download-option" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem; background: #ffffff; border: 2px solid #10b981; border-radius: 16px; text-decoration: none; box-shadow: 0 10px 25px rgba(16,185,129,0.15); transition: transform 0.2s;">
+                <div class="opt-details" style="text-align: left;">
+                    <span class="opt-quality" style="font-size: 1.05rem; font-weight: 700; color: #0f172a;">📹 ${videoTitle || 'Download Video'}</span>
+                    <span class="opt-size" style="font-size: 0.85rem; color: #10b981; font-weight: 600; margin-top: 4px; display: block;">⬇️ Click to save MP4 to Gallery / Downloads</span>
+                </div>
+                <div style="background: #10b981; color: white; padding: 10px 16px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; white-space: nowrap;">SAVE MP4</div>
+            </a>
+        `;
+        resultsPanel.classList.remove('hidden');
+    };
+
     const performAnalysis = async (url) => {
         actionBtn.classList.add('loading');
         updateStatus("Analyzing link...", "var(--primary)");
@@ -71,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await analyzeLink(url);
             console.log(result);
             if (result.success) {
+                lastAnalyzedTitle = result.title || 'Tanzeel Video';
                 updateStatus(`Platform: ${result.platform} | ${result.qualities[0].quality}`, "green");
                 return true;
             } else {
@@ -177,15 +194,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const downloadId = Math.random().toString(36).substring(2, 10);
         const downloadUrl = getApiUrl(`/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`);
         
-        // Trigger download using hidden iframe to prevent page navigation or reload glitches
-        let downloadIframe = document.getElementById('hidden-download-iframe');
-        if (!downloadIframe) {
-            downloadIframe = document.createElement('iframe');
-            downloadIframe.id = 'hidden-download-iframe';
-            downloadIframe.style.display = 'none';
-            document.body.appendChild(downloadIframe);
-        }
-        downloadIframe.src = downloadUrl;
+        // Render prominent download card option in results panel
+        renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
+
+        // Native user-activation click trigger for browser file download
+        const tempAnchor = document.createElement('a');
+        tempAnchor.href = downloadUrl;
+        tempAnchor.setAttribute('download', '');
+        tempAnchor.target = '_blank';
+        tempAnchor.rel = 'noopener';
+        document.body.appendChild(tempAnchor);
+        tempAnchor.click();
+        document.body.removeChild(tempAnchor);
 
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
