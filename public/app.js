@@ -149,6 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const triggerDownload = async (manualText) => {
         if (actionBtn.classList.contains('downloading')) return; 
         
+        // Hide results panel until confirmed
+        if (resultsPanel) resultsPanel.classList.add('hidden');
+        if (optionsList) optionsList.innerHTML = '';
+
         updateStatus("Downloading video to device...", "var(--primary)");
         actionBtn.classList.add('downloading');
         
@@ -188,9 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const downloadId = Math.random().toString(36).substring(2, 10);
         const downloadUrl = getApiUrl(`/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`);
-        
-        // Render prominent download card option in results panel
-        renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
 
         // Trigger browser file download via hidden iframe
         let iframe = document.getElementById('download-frame');
@@ -205,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
 
-        const resetBtnState = (statusText, statusColor) => {
+        const resetBtnState = (statusText, statusColor, isFailure = false) => {
             clearInterval(pollInterval);
             if (statusText) updateStatus(statusText, statusColor || "#059669");
             actionBtn.classList.remove('downloading');
@@ -214,6 +215,10 @@ document.addEventListener('DOMContentLoaded', () => {
             fakeProgressText.style.display = 'none';
             spinner.style.display = 'none';
             if (btnIcon) btnIcon.style.display = 'block';
+            if (isFailure && resultsPanel) {
+                resultsPanel.classList.add('hidden');
+                if (optionsList) optionsList.innerHTML = '';
+            }
         };
 
         const pollInterval = setInterval(async () => {
@@ -227,9 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (!data.success) {
                         failedPolls++;
-                        // If progress API returns false 10 times (5 seconds) without starting real progress,
-                        // direct attachment stream or background download has dispatched to browser.
                         if (failedPolls >= 10 && !hasRealProgressStarted) {
+                            renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
                             return resetBtnState("Download dispatched to browser! Check your Downloads folder.", "#059669");
                         }
                     } else if (data.success && data.data) {
@@ -277,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             statPercent.textContent = `100%`;
                             progressBarBg.style.width = `100%`;
                             downloadStats.textContent = "Download complete!";
+                            renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
                             updateStatus("Video downloaded successfully! Check your Downloads folder.", "#059669");
                             
                             setTimeout(() => {
@@ -284,12 +289,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 downloadStats.textContent = '';
                             }, 3000);
                         } else if (info.status === 'Failed') {
-                            resetBtnState(info.message || "Download failed. Please check your link.", "red");
+                            console.error("Download failed reason:", info.message);
+                            resetBtnState(info.message || "Download failed. Please check your link.", "red", true);
                         }
                     }
                 }
 
                 if (pollCount >= maxPolls && !hasRealProgressStarted) {
+                    renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
                     resetBtnState("Download request finished. Check your Downloads folder.", "#059669");
                 }
             } catch (e) {
