@@ -12,7 +12,33 @@ try {
     console.warn('ffmpeg-static module load warning:', e.message);
 }
 
-const progressMap = {};
+const progressMap = new Map();
+
+// Automatic cleanup for progressMap entries older than 10 minutes
+function cleanStaleProgress() {
+    const now = Date.now();
+    for (const [id, data] of progressMap.entries()) {
+        if (data.updatedAt && (now - data.updatedAt > 10 * 60 * 1000)) {
+            progressMap.delete(id);
+        }
+    }
+}
+setInterval(cleanStaleProgress, 5 * 60 * 1000).unref();
+
+function setProgress(id, data) {
+    if (!id || typeof id !== 'string') return;
+    progressMap.set(id, { ...data, updatedAt: Date.now() });
+}
+
+function getProgress(id) {
+    if (!id || typeof id !== 'string') return null;
+    return progressMap.get(id) || null;
+}
+
+function deleteProgress(id) {
+    if (!id || typeof id !== 'string') return;
+    progressMap.delete(id);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +59,41 @@ try {
     }
 } catch (e) {
     console.warn('Failed to create tmp downloads directory:', e.message);
+}
+
+// Disk cleanup for stale downloads older than 30 minutes
+function cleanStaleDownloads() {
+    try {
+        if (!fs.existsSync(downloadsDir)) return;
+        const files = fs.readdirSync(downloadsDir);
+        const now = Date.now();
+        files.forEach(file => {
+            const filePath = path.join(downloadsDir, file);
+            try {
+                const stats = fs.statSync(filePath);
+                if (now - stats.mtimeMs > 30 * 60 * 1000) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (e) {}
+        });
+    } catch (e) {
+        console.warn('Stale downloads cleanup warning:', e.message);
+    }
+}
+cleanStaleDownloads();
+setInterval(cleanStaleDownloads, 15 * 60 * 1000).unref();
+
+function sanitizeFilename(title) {
+    if (!title || typeof title !== 'string') return 'Tanzeel_Video';
+    const cleaned = title.trim().replace(/[\/\\:\*\?"<>\|\x00-\x1F]/g, '').replace(/\s+/g, '_');
+    return cleaned || 'Tanzeel_Video';
+}
+
+function setContentDispositionHeader(res, title, ext = 'mp4') {
+    const safeTitle = sanitizeFilename(title);
+    const asciiTitle = safeTitle.replace(/[^\x20-\x7E]/g, '_');
+    const encodedTitle = encodeURIComponent(safeTitle);
+    res.header('Content-Disposition', `attachment; filename="${asciiTitle}.${ext}"; filename*=UTF-8''${encodedTitle}.${ext}`);
 }
 
 app.use(cors());
@@ -172,9 +233,10 @@ app.post('/analyze', async (req, res) => {
 });
 
 app.get('/progress', (req, res) => {
-    const { id } = req.query;
-    if (id && progressMap[id]) {
-        res.json({ success: true, data: progressMap[id] });
+    const id = typeof req.query.id === 'string' ? req.query.id : null;
+    const data = getProgress(id);
+    if (data) {
+        res.json({ success: true, data });
     } else {
         res.json({ success: false });
     }
@@ -207,11 +269,10 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                 console.error('Stream proxy HTTP status error:', videoRes.statusCode);
                 if (!res.headersSent) res.status(500).send('Unable to stream video');
-                if (downloadId) delete progressMap[downloadId];
+                if (downloadId) deleteProgress(downloadId);
                 return;
             }
 
-            const cleanTitle = (safeTitle || 'Tanzeel_Video').replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_') || 'Tanzeel_Video';
             const upstreamType = videoRes.headers['content-type'] || 'video/mp4';
             let ext = 'mp4';
             if (upstreamType.includes('webm')) ext = 'webm';
@@ -219,26 +280,27 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
 
             res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.header('Content-Type', upstreamType);
-            res.header('Content-Disposition', `attachment; filename="${cleanTitle}.${ext}"`);
+            setContentDispositionHeader(res, safeTitle, ext);
+
             if (videoRes.headers['content-length']) {
                 res.header('Content-Length', videoRes.headers['content-length']);
             }
             
-            if (downloadId && progressMap[downloadId]) {
-                progressMap[downloadId] = { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' };
-                setTimeout(() => delete progressMap[downloadId], 5000);
+            if (downloadId) {
+                setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
+                setTimeout(() => deleteProgress(downloadId), 5000);
             }
             
             videoRes.pipe(res);
         }).on('error', (err) => {
             console.error('Stream proxy network error:', err);
             if (!res.headersSent) res.status(500).send('Stream error');
-            if (downloadId) delete progressMap[downloadId];
+            if (downloadId) deleteProgress(downloadId);
         });
     } catch (err) {
         console.error('Proxy exception:', err);
         if (!res.headersSent) res.status(500).send('Stream exception');
-        if (downloadId) delete progressMap[downloadId];
+        if (downloadId) deleteProgress(downloadId);
     }
 }
 
@@ -334,16 +396,16 @@ app.get('/download', async (req, res) => {
         return res.status(400).send('Invalid URL provided');
     }
 
-    const downloadId = id || Math.random().toString(36).substring(2, 10);
+    const downloadId = (id && typeof id === 'string') ? id : Math.random().toString(36).substring(2, 10);
     
     // Register progress immediately so frontend polling never times out!
-    progressMap[downloadId] = { 
+    setProgress(downloadId, { 
         percent: 15, 
         size: 'Fetching...', 
         speed: 'Connecting...', 
         eta: 'Calculating...', 
         status: 'Downloading...' 
-    };
+    });
 
     const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
     const hasBinary = fs.existsSync(ytDlpPath);
@@ -378,8 +440,8 @@ app.get('/download', async (req, res) => {
             } catch (e) {}
         }
 
-        progressMap[downloadId] = { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' };
-        setTimeout(() => delete progressMap[downloadId], 5000);
+        setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
+        setTimeout(() => deleteProgress(downloadId), 5000);
 
         if (streamUrl) {
             return res.redirect(302, streamUrl);
@@ -399,9 +461,9 @@ app.get('/download', async (req, res) => {
     execFile(ytDlpPath, titleArgs, (error, stdout) => {
         let rawTitle = 'Tanzeel_Video';
         if (!error && stdout) {
-            rawTitle = stdout.trim().replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
+            rawTitle = stdout.trim();
         }
-        const safeTitle = rawTitle || 'Tanzeel_Video';
+        const safeTitle = sanitizeFilename(rawTitle);
 
         const dlArgs = [
             '--no-playlist', 
@@ -425,38 +487,39 @@ app.get('/download', async (req, res) => {
             if (fs.existsSync(tempFilePath)) {
                 try { fs.unlinkSync(tempFilePath); } catch (e) {}
             }
-            delete progressMap[downloadId];
+            deleteProgress(downloadId);
         });
 
         subprocess.stderr.on('data', (data) => {
             const output = data.toString();
             const match = output.match(/\[download\]\s+([\d\.]+)%\s+of\s+~?\s*([\d\.]+[a-zA-Z]+)(?:\s+at\s+([^\s]+)\s+ETA\s+([^\s]+))?/);
             if (match) {
-                progressMap[downloadId] = { 
+                setProgress(downloadId, { 
                     percent: parseFloat(match[1]), 
                     size: match[2], 
                     speed: match[3] || 'Calculating...',
                     eta: match[4] || 'Calculating...',
                     status: 'Downloading...' 
-                };
+                });
             }
         });
 
         subprocess.on('close', (code) => {
             if (code === 0 && fs.existsSync(tempFilePath)) {
-                progressMap[downloadId] = { percent: 100, size: progressMap[downloadId]?.size || 'Done', status: 'Complete' };
+                const currentData = getProgress(downloadId);
+                setProgress(downloadId, { percent: 100, size: currentData?.size || 'Done', status: 'Complete' });
                 
                 res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
                 res.header('Pragma', 'no-cache');
                 res.header('Expires', '0');
                 res.header('Content-Type', 'video/mp4');
-                res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
+                setContentDispositionHeader(res, safeTitle, 'mp4');
 
                 res.sendFile(tempFilePath, (err) => {
                     if (fs.existsSync(tempFilePath)) {
                         try { fs.unlinkSync(tempFilePath); } catch (e) {}
                     }
-                    setTimeout(() => delete progressMap[downloadId], 5000);
+                    setTimeout(() => deleteProgress(downloadId), 5000);
                 });
             } else {
                 if (!res.headersSent) {
@@ -465,7 +528,7 @@ app.get('/download', async (req, res) => {
                 if (fs.existsSync(tempFilePath)) {
                     try { fs.unlinkSync(tempFilePath); } catch (e) {}
                 }
-                delete progressMap[downloadId];
+                deleteProgress(downloadId);
             }
         });
     });
