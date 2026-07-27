@@ -662,6 +662,7 @@ app.get('/download', async (req, res) => {
     const extractArgs = [
         '--no-check-certificates',
         '--no-playlist',
+        '--js-runtimes', 'node',
         '-g',
         '--get-title',
         '-f', '18/22/best[ext=mp4]/b/best'
@@ -675,7 +676,7 @@ app.get('/download', async (req, res) => {
     }
     extractArgs.push(url);
 
-    execFile(ytDlpPath, extractArgs, { timeout: 8000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
+    execFile(ytDlpPath, extractArgs, { timeout: 5000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
         let rawTitle = 'Tanzeel_Video';
         let directUrl = null;
 
@@ -722,6 +723,7 @@ app.get('/download', async (req, res) => {
         const dlArgs = [
             '--no-check-certificates',
             '--no-playlist', 
+            '--js-runtimes', 'node',
             '-f', '18/22/best[ext=mp4]/b/best', 
             '-o', '-'
         ];
