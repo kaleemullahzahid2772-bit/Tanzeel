@@ -474,7 +474,7 @@ app.get('/download', async (req, res) => {
         '--no-check-certificates',
         '-g',
         '--get-title',
-        '-f', '18/22/best[ext=mp4]/best',
+        '-f', 'b/best',
         '--js-runtimes', 'node'
     ];
     if (ffmpegPath) {
@@ -490,7 +490,7 @@ app.get('/download', async (req, res) => {
         let rawTitle = 'Tanzeel_Video';
         let directUrl = null;
 
-        if (!error && stdout) {
+        if (stdout) {
             const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
             const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
             if (titleLine) rawTitle = titleLine;
