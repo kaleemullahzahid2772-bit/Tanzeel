@@ -71,6 +71,30 @@ describe('Server Security & API Integration Tests', () => {
             expect(res.text).not.toContain('ssyoutube');
             expect(res.text).not.toContain('savefrom');
         });
+
+        it('should handle /api/download route alias and encoded YouTube URLs correctly', async () => {
+            const testUrl = encodeURIComponent('https://youtu.be/U9KUW63Jqhc?si=oROLxb8N-M8yFKjz');
+            const res = await request(app).get(`/api/download?url=${testUrl}`);
+            // Should be handled by server (either return stream or 400 JSON on extraction fail, NEVER 404 or HTML)
+            expect(res.statusCode).not.toBe(404);
+            expect(res.headers['content-type']).not.toMatch(/text\/html/);
+        });
+    });
+
+    describe('Route Aliases (/api/*)', () => {
+        it('should support /api/analyze route alias', async () => {
+            const res = await request(app)
+                .post('/api/analyze')
+                .send({ url: 'https://youtu.be/U9KUW63Jqhc' });
+            expect(res.statusCode).toBe(200);
+            expect(res.body.success).toBe(true);
+        });
+
+        it('should support /api/progress route alias', async () => {
+            const res = await request(app).get('/api/progress?id=non_existent');
+            expect(res.statusCode).toBe(200);
+            expect(res.body).toEqual({ success: false });
+        });
     });
 
     describe('/progress Endpoint', () => {
