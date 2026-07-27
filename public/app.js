@@ -197,13 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render prominent download card option in results panel
         renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
 
-        // Native user-activation click trigger for browser file download
-        const tempAnchor = document.createElement('a');
-        tempAnchor.href = downloadUrl;
-        tempAnchor.setAttribute('download', '');
-        document.body.appendChild(tempAnchor);
-        tempAnchor.click();
-        document.body.removeChild(tempAnchor);
+        // Trigger browser file download (attachment content-disposition avoids page reload)
+        window.location.href = downloadUrl;
 
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
