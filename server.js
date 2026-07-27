@@ -334,46 +334,55 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
 }
 
 async function getCobaltDirectStream(videoUrl) {
-    try {
-        const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264', videoQuality: '720' });
-        const options = {
-            hostname: 'api.cobalt.tools',
-            port: 443,
-            path: '/api/json',
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Content-Length': Buffer.byteLength(postData)
-            }
-        };
+    const instances = [
+        { hostname: 'co.wuk.sh', path: '/api/json' },
+        { hostname: 'api.cobalt.tools', path: '/api/json' },
+        { hostname: 'cobalt.q1.l5.ca', path: '/api/json' }
+    ];
 
-        return new Promise((resolve) => {
-            const req = https.request(options, (res) => {
-                let body = '';
-                res.on('data', chunk => body += chunk);
-                res.on('end', () => {
-                    try {
-                        const json = JSON.parse(body);
-                        if (json && (json.url || json.picker)) {
-                            const directUrl = json.url || (json.picker && json.picker[0] ? json.picker[0].url : null);
-                            resolve(directUrl);
-                        } else {
+    for (const inst of instances) {
+        try {
+            const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264', videoQuality: '720' });
+            const options = {
+                hostname: inst.hostname,
+                port: 443,
+                path: inst.path,
+                method: 'POST',
+                agent: sslAgent,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+
+            const directUrl = await new Promise((resolve) => {
+                const req = https.request(options, (res) => {
+                    let body = '';
+                    res.on('data', chunk => body += chunk);
+                    res.on('end', () => {
+                        try {
+                            const json = JSON.parse(body);
+                            if (json && (json.url || json.picker)) {
+                                resolve(json.url || (json.picker && json.picker[0] ? json.picker[0].url : null));
+                            } else {
+                                resolve(null);
+                            }
+                        } catch (e) {
                             resolve(null);
                         }
-                    } catch (e) {
-                        resolve(null);
-                    }
+                    });
                 });
+                req.on('error', () => resolve(null));
+                req.write(postData);
+                req.end();
             });
-            req.on('error', () => resolve(null));
-            req.write(postData);
-            req.end();
-        });
-    } catch (e) {
-        return null;
+
+            if (directUrl) return directUrl;
+        } catch (e) {}
     }
+    return null;
 }
 
 async function getPipedDirectStreamUrl(videoId) {
