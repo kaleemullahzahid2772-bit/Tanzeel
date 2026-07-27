@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const triggerDownload = async (manualText) => {
         if (actionBtn.classList.contains('downloading')) return; 
         
-        updateStatus("Downloading to gallery...", "var(--primary)");
+        updateStatus("Downloading video to device...", "var(--primary)");
         actionBtn.classList.add('downloading');
         
         const fakeProgressText = document.getElementById('fake-progress-text');
@@ -219,9 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!data.success) {
                         failedPolls++;
                         // If progress API returns false 6 times (3 seconds) without starting real progress,
-                        // serverless direct stream redirect or background download has dispatched.
+                        // direct attachment stream or background download has dispatched to browser.
                         if (failedPolls >= 6 && !hasRealProgressStarted) {
-                            return resetBtnState("Download started!", "#059669");
+                            return resetBtnState("Download dispatched! Check your Downloads folder.", "#059669");
                         }
                     } else if (data.success && data.data) {
                         failedPolls = 0;
@@ -262,32 +262,32 @@ document.addEventListener('DOMContentLoaded', () => {
                             statSpeed.textContent = info.speed.replace('MiB/s', 'MB/s');
                             statEta.textContent = info.eta;
                             downloadStats.textContent = `Downloading video...`;
-                            updateStatus("Downloading file...", "var(--primary)");
+                            updateStatus("Downloading video to device...", "var(--primary)");
                         } else if (info.status === 'Complete') {
                             hasRealProgressStarted = true;
                             statPercent.textContent = `100%`;
                             progressBarBg.style.width = `100%`;
                             downloadStats.textContent = "Download complete!";
-                            updateStatus("Video saved to gallery.", "#059669");
+                            updateStatus("Video downloaded successfully! Check your Downloads folder.", "#059669");
                             
                             setTimeout(() => {
-                                resetBtnState("Video saved to gallery.", "#059669");
+                                resetBtnState("Video downloaded successfully! Check your Downloads folder.", "#059669");
                                 downloadStats.textContent = '';
-                            }, 2000);
+                            }, 3000);
                         } else if (info.status === 'Failed') {
-                            resetBtnState(info.message || "Download failed. Please try another link.", "red");
+                            resetBtnState(info.message || "Download failed. Please check your link.", "red");
                         }
                     }
                 }
 
                 if (pollCount >= maxPolls && !hasRealProgressStarted) {
-                    resetBtnState("Download initiated.", "#059669");
+                    resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
                 }
             } catch (e) {
                 console.error('Polling error:', e);
                 failedPolls++;
                 if (failedPolls >= 6 && !hasRealProgressStarted) {
-                    resetBtnState("Download initiated.", "#059669");
+                    resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
                 }
             }
         }, 500);
