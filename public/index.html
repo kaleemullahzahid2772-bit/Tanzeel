@@ -9,7 +9,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20">
+    <link rel="stylesheet" href="style.css?v=25">
+    <script>
+        // Suppress third-party telemetry Sentry 429 rate-limit errors in browser
+        (function() {
+            var origFetch = window.fetch;
+            if (origFetch) {
+                window.fetch = function() {
+                    var url = arguments[0];
+                    if (typeof url === 'string' && url.includes('sentry.io')) {
+                        return Promise.resolve(new Response('', { status: 200 }));
+                    }
+                    return origFetch.apply(this, arguments);
+                };
+            }
+        })();
+    </script>
 </head>
 <body>
     <div id="mobile-frame">
