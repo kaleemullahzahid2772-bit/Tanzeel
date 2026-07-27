@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render prominent download card option in results panel
         renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
 
-        // Trigger browser file download via hidden iframe (prevents ERR_INVALID_RESPONSE screen crashes)
+        // Trigger browser file download via hidden iframe
         let iframe = document.getElementById('download-frame');
         if (!iframe) {
             iframe = document.createElement('iframe');
@@ -195,6 +195,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(iframe);
         }
         iframe.src = downloadUrl;
+
+        // Direct window location trigger fallback for mobile browsers & domain environment
+        setTimeout(() => {
+            if (!hasRealProgressStarted && actionBtn.classList.contains('downloading')) {
+                window.location.href = downloadUrl;
+            }
+        }, 1200);
 
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
