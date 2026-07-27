@@ -172,7 +172,18 @@ function downloadBinaryIfNeeded() {
 // Trigger background download on server boot if binary is not present
 downloadBinaryIfNeeded().catch(() => {});
 
-const cookiesPath = path.join(__dirname, 'cookies.txt');
+let cookiesPath = path.join(__dirname, 'cookies.txt');
+if (!fs.existsSync(cookiesPath)) {
+    const tmpCookies = path.join(os.tmpdir(), 'cookies.txt');
+    if (process.env.YOUTUBE_COOKIES) {
+        try {
+            fs.writeFileSync(tmpCookies, process.env.YOUTUBE_COOKIES, 'utf-8');
+            cookiesPath = tmpCookies;
+        } catch (e) {}
+    } else if (fs.existsSync(tmpCookies)) {
+        cookiesPath = tmpCookies;
+    }
+}
 const downloadsDir = path.join(os.tmpdir(), 'tanzeel_downloads');
 try {
     if (!fs.existsSync(downloadsDir)) {
