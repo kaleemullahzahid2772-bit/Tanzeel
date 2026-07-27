@@ -201,8 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const tempAnchor = document.createElement('a');
         tempAnchor.href = downloadUrl;
         tempAnchor.setAttribute('download', '');
-        tempAnchor.target = '_blank';
-        tempAnchor.rel = 'noopener';
         document.body.appendChild(tempAnchor);
         tempAnchor.click();
         document.body.removeChild(tempAnchor);

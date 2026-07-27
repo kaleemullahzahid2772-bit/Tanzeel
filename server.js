@@ -498,18 +498,7 @@ app.get('/download', async (req, res) => {
             dlArgs.push('--cookies', cookiesPath);
         }
         dlArgs.push('-o', tempFilePath, url);
-
         const subprocess = spawn(ytDlpPath, dlArgs);
-
-        req.on('close', () => {
-            if (subprocess && !subprocess.killed) {
-                subprocess.kill('SIGTERM');
-            }
-            if (fs.existsSync(tempFilePath)) {
-                try { fs.unlinkSync(tempFilePath); } catch (e) {}
-            }
-            deleteProgress(downloadId);
-        });
 
         subprocess.stderr.on('data', (data) => {
             const output = data.toString();
