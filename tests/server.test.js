@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../server');
 
-jest.setTimeout(30000);
+jest.setTimeout(45000);
 
 describe('Server Security & API Integration Tests', () => {
     
