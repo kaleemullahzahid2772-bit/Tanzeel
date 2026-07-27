@@ -468,20 +468,64 @@ app.get('/download', async (req, res) => {
         }
     }
 
-    const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
-    const titleArgs = ['--no-playlist', '--no-check-certificates', '--get-title', '--js-runtimes', 'node'];
+    // Instant Direct Stream Extraction via yt-dlp -g --get-title
+    const extractArgs = [
+        '--no-playlist',
+        '--no-check-certificates',
+        '-g',
+        '--get-title',
+        '-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+        '--js-runtimes', 'node'
+    ];
     if (fs.existsSync(cookiesPath)) {
-        titleArgs.push('--cookies', cookiesPath);
+        extractArgs.push('--cookies', cookiesPath);
     }
-    titleArgs.push(url);
+    extractArgs.push(url);
 
-    execFile(ytDlpPath, titleArgs, (error, stdout) => {
+    execFile(ytDlpPath, extractArgs, async (error, stdout) => {
         let rawTitle = 'Tanzeel_Video';
+        let directUrl = null;
+
         if (!error && stdout) {
-            rawTitle = stdout.trim();
+            const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length >= 2) {
+                rawTitle = lines[0];
+                directUrl = lines[lines.length - 1];
+            } else if (lines.length === 1 && lines[0].startsWith('http')) {
+                directUrl = lines[0];
+            } else if (lines.length === 1) {
+                rawTitle = lines[0];
+            }
         }
         const safeTitle = sanitizeFilename(rawTitle);
 
+        if (directUrl && directUrl.startsWith('http')) {
+            return proxyVideoStream(directUrl, safeTitle, res, downloadId);
+        }
+
+        // Fallback stream engines
+        let streamUrl = null;
+        try { streamUrl = await getCobaltDirectStream(url); } catch (e) {}
+        const videoId = extractYouTubeId(url);
+        if (!streamUrl && videoId) {
+            try {
+                const piped = await getPipedDirectStreamUrl(videoId);
+                if (piped && piped.url) streamUrl = piped.url;
+            } catch (e) {}
+        }
+        if (!streamUrl && videoId) {
+            try {
+                const inv = await getInvidiousDirectStreamUrl(videoId);
+                if (inv && inv.url) streamUrl = inv.url;
+            } catch (e) {}
+        }
+
+        if (streamUrl) {
+            return proxyVideoStream(streamUrl, safeTitle, res, downloadId);
+        }
+
+        // Fallback: spawn disk download if stream URL extraction wasn't available
+        const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
         const dlArgs = [
             '--no-playlist', 
             '--no-check-certificates',
@@ -535,28 +579,6 @@ app.get('/download', async (req, res) => {
                 if (fs.existsSync(tempFilePath)) {
                     try { fs.unlinkSync(tempFilePath); } catch (e) {}
                 }
-                
-                // Fallback stream engine if local yt-dlp binary encounters an error
-                let streamUrl = null;
-                try { streamUrl = await getCobaltDirectStream(url); } catch (e) {}
-                const videoId = extractYouTubeId(url);
-                if (!streamUrl && videoId) {
-                    try {
-                        const piped = await getPipedDirectStreamUrl(videoId);
-                        if (piped && piped.url) streamUrl = piped.url;
-                    } catch (e) {}
-                }
-                if (!streamUrl && videoId) {
-                    try {
-                        const inv = await getInvidiousDirectStreamUrl(videoId);
-                        if (inv && inv.url) streamUrl = inv.url;
-                    } catch (e) {}
-                }
-
-                if (streamUrl) {
-                    return proxyVideoStream(streamUrl, safeTitle, res, downloadId);
-                }
-
                 setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to download video' });
                 if (!res.headersSent) {
                     res.status(500).send('Failed to download video');
