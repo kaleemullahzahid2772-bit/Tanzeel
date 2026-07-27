@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.location.protocol === 'file:') {
             return `http://localhost:3000${endpoint}`;
         }
+        if (window.API_BASE_URL && typeof window.API_BASE_URL === 'string') {
+            return `${window.API_BASE_URL}${endpoint}`;
+        }
         return endpoint;
     };
 
