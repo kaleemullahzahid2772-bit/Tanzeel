@@ -164,29 +164,15 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBarBg.style.width = '0%';
         downloadStats.textContent = 'Preparing download...';
         
-        let fakeProgress = 0;
-        const fakeProgressInterval = setInterval(() => {
-            if (fakeProgress < 90) {
-                fakeProgress += Math.floor(Math.random() * 10) + 5;
-                if (fakeProgress > 90) fakeProgress = 90;
-                fakeProgressText.textContent = `${fakeProgress}%`;
-            }
-        }, 100);
-        
         // Start analysis in the background
         const isSuccess = await performAnalysis(manualText);
         if (!isSuccess) {
-            clearInterval(fakeProgressInterval);
-            fakeProgressText.style.display = 'none';
             if (btnIcon) btnIcon.style.display = 'block';
             actionBtn.classList.remove('downloading');
             return;
         }
         
         currentUrl = manualText;
-        fakeProgress = 100;
-        fakeProgressText.textContent = '100%';
-        clearInterval(fakeProgressInterval);
 
         let hasRealProgressStarted = false;
         let failedPolls = 0;
@@ -205,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const resetBtnState = (statusText, statusColor) => {
             clearInterval(pollInterval);
-            clearInterval(fakeProgressInterval);
             if (statusText) updateStatus(statusText, statusColor || "#059669");
             actionBtn.classList.remove('downloading');
             actionBtn.classList.remove('loading');
