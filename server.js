@@ -1,27 +1,33 @@
 process.env.YTDL_NO_UPDATE = 'true';
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const express = require('express');
 const cors = require('cors');
-const { spawn, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const http = require('http');
 const https = require('https');
+const { URL } = require('url');
 
-let cookiesPath = path.join(__dirname, 'cookies.txt');
-if (process.env.YOUTUBE_COOKIES) {
-    const tmpCookies = path.join(os.tmpdir(), 'cookies.txt');
-    try {
-        fs.writeFileSync(tmpCookies, process.env.YOUTUBE_COOKIES, 'utf-8');
-        cookiesPath = tmpCookies;
-    } catch (e) {}
-} else if (!fs.existsSync(cookiesPath)) {
+// Determine cookie path safely without requiring committed cookies.txt
+function getCookiesPath() {
+    if (process.env.YOUTUBE_COOKIES) {
+        const tmpCookies = path.join(os.tmpdir(), 'tanzeel_env_cookies.txt');
+        try {
+            fs.writeFileSync(tmpCookies, process.env.YOUTUBE_COOKIES, 'utf-8');
+            return tmpCookies;
+        } catch (e) {}
+    }
+    const localCookies = path.join(__dirname, 'cookies.txt');
+    if (fs.existsSync(localCookies)) {
+        return localCookies;
+    }
     const tmpCookies = path.join(os.tmpdir(), 'cookies.txt');
     if (fs.existsSync(tmpCookies)) {
-        cookiesPath = tmpCookies;
+        return tmpCookies;
     }
+    return null;
 }
 
 let ffmpegPath = null;
@@ -31,7 +37,7 @@ try {
         ffmpegPath = staticPath;
     }
 } catch (e) {
-    console.warn('ffmpeg-static module load warning:', e.message);
+    // Optional dependency warning handled gracefully
 }
 
 if (!ffmpegPath) {
@@ -70,6 +76,8 @@ function deleteProgress(id) {
 }
 
 const app = express();
+app.disable('x-powered-by');
+
 const PORT = process.env.PORT || 3000;
 const isWin = process.platform === 'win32';
 const winBinary = path.join(__dirname, 'downloader.exe');
@@ -91,7 +99,7 @@ let ytdlCore = null;
 try {
     ytdlCore = require('@distube/ytdl-core');
 } catch (e) {
-    console.warn('@distube/ytdl-core load warning:', e.message);
+    // Optional dependency fallback
 }
 
 let binaryAvailabilityCache = null;
@@ -139,9 +147,10 @@ async function getYtdlCoreStreamUrl(videoUrl) {
             }
         };
 
-        if (fs.existsSync(cookiesPath)) {
+        const cookiesFile = getCookiesPath();
+        if (cookiesFile && fs.existsSync(cookiesFile)) {
             try {
-                const cookieContent = fs.readFileSync(cookiesPath, 'utf-8');
+                const cookieContent = fs.readFileSync(cookiesFile, 'utf-8');
                 const lines = cookieContent.split('\n');
                 const parsedCookies = lines.map(line => {
                     if (!line || line.startsWith('#')) return null;
@@ -163,7 +172,7 @@ async function getYtdlCoreStreamUrl(videoUrl) {
                     options.agent = ytdlCore.createAgent(parsedCookies);
                 }
             } catch (cookieErr) {
-                console.warn('ytdl-core cookie parsing warning:', cookieErr.message);
+                // Ignore invalid cookie format safely
             }
         }
 
@@ -180,11 +189,10 @@ async function getYtdlCoreStreamUrl(videoUrl) {
             }
         }
     } catch (e) {
-        console.warn('ytdl-core extraction error:', e.message);
+        // ytdl-core extraction error handled silently for fallback
     }
     return null;
 }
-
 
 let isDownloadingBinary = false;
 function downloadBinaryIfNeeded() {
@@ -221,14 +229,13 @@ function downloadBinaryIfNeeded() {
                 isDownloadingBinary = false;
                 return resolve(null);
             }
-            https.get(url, { agent: sslAgent }, (res) => {
+            https.get(url, (res) => {
                 if ([301, 302, 307, 308].includes(res.statusCode)) {
                     if (res.headers.location) {
                         return fetchFile(res.headers.location, dest, attempts + 1);
                     }
                 }
                 if (res.statusCode !== 200) {
-                    console.warn('Failed to download yt-dlp binary. HTTP status:', res.statusCode);
                     isDownloadingBinary = false;
                     return resolve(null);
                 }
@@ -246,7 +253,6 @@ function downloadBinaryIfNeeded() {
                             console.log('yt-dlp binary successfully downloaded & cached at:', dest);
                             resolve(dest);
                         } catch (e) {
-                            console.error('Error setting permissions on downloaded binary:', e);
                             isDownloadingBinary = false;
                             resolve(null);
                         }
@@ -254,12 +260,10 @@ function downloadBinaryIfNeeded() {
                 });
                 fileStream.on('error', (err) => {
                     fs.unlink(dest, () => {});
-                    console.error('File stream error while downloading yt-dlp:', err);
                     isDownloadingBinary = false;
                     resolve(null);
                 });
             }).on('error', (err) => {
-                console.error('Network error downloading yt-dlp:', err);
                 isDownloadingBinary = false;
                 resolve(null);
             });
@@ -267,7 +271,7 @@ function downloadBinaryIfNeeded() {
         fetchFile(downloadUrl, tmpPath);
     });
 }
-// Trigger background download on server boot if binary is not present
+
 downloadBinaryIfNeeded().catch(() => {});
 
 const downloadsDir = path.join(os.tmpdir(), 'tanzeel_downloads');
@@ -275,11 +279,8 @@ try {
     if (!fs.existsSync(downloadsDir)) {
         fs.mkdirSync(downloadsDir, { recursive: true });
     }
-} catch (e) {
-    console.warn('Failed to create tmp downloads directory:', e.message);
-}
+} catch (e) {}
 
-// Disk cleanup for stale downloads older than 30 minutes
 function cleanStaleDownloads() {
     try {
         if (!fs.existsSync(downloadsDir)) return;
@@ -294,9 +295,7 @@ function cleanStaleDownloads() {
                 }
             } catch (e) {}
         });
-    } catch (e) {
-        console.warn('Stale downloads cleanup warning:', e.message);
-    }
+    } catch (e) {}
 }
 cleanStaleDownloads();
 setInterval(cleanStaleDownloads, 15 * 60 * 1000).unref();
@@ -314,6 +313,52 @@ function setContentDispositionHeader(res, title, ext = 'mp4') {
     res.header('Content-Disposition', `attachment; filename="${asciiTitle}.${ext}"; filename*=UTF-8''${encodedTitle}.${ext}`);
 }
 
+// Security Headers Middleware
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self' https:;");
+    next();
+});
+
+// Lightweight Rate Limiting Middleware (30 requests / min per IP)
+const rateLimitMap = new Map();
+function rateLimiter(req, res, next) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute
+    const maxRequests = 40;
+
+    let record = rateLimitMap.get(ip);
+    if (!record || now - record.startTime > windowMs) {
+        record = { count: 1, startTime: now };
+    } else {
+        record.count++;
+    }
+    rateLimitMap.set(ip, record);
+
+    if (record.count > maxRequests) {
+        return res.status(429).json({
+            success: false,
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests. Please wait a minute before trying again.'
+        });
+    }
+    next();
+}
+
+// Cleanup stale rate limit entries every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of rateLimitMap.entries()) {
+        if (now - record.startTime > 60 * 1000) {
+            rateLimitMap.delete(ip);
+        }
+    }
+}, 5 * 60 * 1000).unref();
+
 app.use(cors());
 app.use(express.json());
 
@@ -325,7 +370,7 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
-// Handle favicon.ico cleanly to avoid any browser 404 errors
+// Handle favicon.ico cleanly
 app.get('/favicon.ico', (req, res) => {
     const iconPath = path.join(__dirname, 'public', 'favicon.ico');
     if (fs.existsSync(iconPath)) {
@@ -339,7 +384,7 @@ app.get('/favicon.ico', (req, res) => {
     return res.status(204).end();
 });
 
-// Serve static files exclusively from public/ directory for security with strict anti-caching headers
+// Serve static files exclusively from public/ directory
 app.use(express.static(path.join(__dirname, 'public'), {
     etag: false,
     lastModified: false,
@@ -350,7 +395,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
 }));
 
-// Explicit root route handler for Vercel and serverless deployments
+// Root route handler
 app.get('/', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
     res.setHeader('Pragma', 'no-cache');
@@ -366,10 +411,50 @@ app.get('/', (req, res) => {
     res.status(404).send('Index file not found');
 });
 
-const sslAgent = new https.Agent({ rejectUnauthorized: false });
+// SSRF & URL Validation Guard
+function isValidPublicUrl(inputUrl) {
+    if (!inputUrl || typeof inputUrl !== 'string') return false;
+    const trimmed = inputUrl.trim();
+    if (!trimmed) return false;
+
+    let parsed;
+    try {
+        parsed = new URL(trimmed);
+    } catch (e) {
+        return false;
+    }
+
+    // Only allow http: and https: protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return false;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Reject localhost / loopback / empty hostnames
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0' || hostname === '') {
+        return false;
+    }
+
+    // Reject cloud metadata / link-local addresses
+    if (hostname === '169.254.169.254' || hostname.startsWith('169.254.')) {
+        return false;
+    }
+
+    // Reject IPv4 private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false;
+
+    // Reject IPv6 private/link-local ranges (fc00::, fd00::, fe80::)
+    if (hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) return false;
+
+    return true;
+}
 
 function httpsGetJson(url, timeoutMs = 5000) {
     return new Promise((resolve) => {
+        if (!isValidPublicUrl(url)) return resolve(null);
         try {
             const parsed = new URL(url);
             const httpLib = parsed.protocol === 'http:' ? http : https;
@@ -377,7 +462,6 @@ function httpsGetJson(url, timeoutMs = 5000) {
                 hostname: parsed.hostname,
                 port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
                 path: parsed.pathname + parsed.search,
-                agent: parsed.protocol === 'http:' ? undefined : sslAgent,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'application/json'
@@ -430,7 +514,7 @@ async function fallbackAnalyze(url) {
     };
 }
 
-app.post(['/analyze', '/api/analyze'], async (req, res) => {
+app.post(['/analyze', '/api/analyze'], rateLimiter, async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     try {
         const body = (req.body && typeof req.body === 'object') ? req.body : {};
@@ -440,11 +524,10 @@ app.post(['/analyze', '/api/analyze'], async (req, res) => {
         }
         const url = normalizeYouTubeUrl(rawUrl);
         
-        if (!url) {
+        if (!isValidPublicUrl(url)) {
             return res.status(400).json({ success: false, message: 'Invalid URL provided' });
         }
 
-        // On cloud/serverless environment where binary is missing, attempt auto-download or use fallback
         let hasBinary = isBinaryAvailable();
         if (!hasBinary) {
             await downloadBinaryIfNeeded();
@@ -456,16 +539,16 @@ app.post(['/analyze', '/api/analyze'], async (req, res) => {
             return res.status(200).json(fallbackResult);
         }
 
-        const args = ['--no-playlist', '--no-check-certificates', '--dump-json', '--js-runtimes', 'node'];
-        if (fs.existsSync(cookiesPath)) {
-            args.push('--cookies', cookiesPath);
+        const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
+        const cookiesFile = getCookiesPath();
+        if (cookiesFile && fs.existsSync(cookiesFile)) {
+            args.push('--cookies', cookiesFile);
         }
         args.push(url);
         
         try {
             execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
                 if (error || !stdout) {
-                    console.warn('yt-dlp execFile warning, using lightweight fallback:', error ? error.message : 'no stdout');
                     if (stderr && stderr.includes('Please sign in')) {
                         return res.status(400).json({ success: false, message: 'This video is age-restricted or private.' });
                     }
@@ -486,12 +569,10 @@ app.post(['/analyze', '/api/analyze'], async (req, res) => {
                 }
             });
         } catch (execErr) {
-            console.warn('execFile synchronous exception:', execErr);
             const fallbackResult = await fallbackAnalyze(url);
             return res.status(200).json(fallbackResult);
         }
     } catch (err) {
-        console.error('Analyze route exception:', err);
         return res.status(200).json({
             success: true,
             platform: 'Video Platform',
@@ -560,8 +641,10 @@ function extractUrlFromQuery(req) {
 
 function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount = 0) {
     return new Promise((resolve) => {
+        if (!isValidPublicUrl(streamUrl)) {
+            return resolve(false);
+        }
         if (redirectCount > 5) {
-            console.warn('Too many redirects in stream proxy');
             return resolve(false);
         }
         try {
@@ -571,7 +654,6 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount =
                 hostname: parsedUrl.hostname,
                 port: parsedUrl.port || (parsedUrl.protocol === 'http:' ? 80 : 443),
                 path: parsedUrl.pathname + parsedUrl.search,
-                agent: parsedUrl.protocol === 'http:' ? undefined : sslAgent,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': '*/*',
@@ -590,7 +672,6 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount =
                 }
 
                 if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
-                    console.warn(`Stream proxy HTTP status error: ${videoRes.statusCode}`);
                     videoRes.resume();
                     return resolve(false);
                 }
@@ -605,7 +686,6 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount =
                                      upstreamType.includes('text/plain');
 
                 if (!isMedia || isHtmlOrText) {
-                    console.warn(`Stream proxy non-media Content-Type: ${upstreamType}`);
                     videoRes.resume();
                     return resolve(false);
                 }
@@ -627,22 +707,22 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount =
                     deleteProgress(downloadId);
                 }
 
+                // Handle client disconnect gracefully to cancel upstream request
+                res.on('close', () => {
+                    clientReq.destroy();
+                });
+
                 videoRes.pipe(res);
                 return resolve(true);
             });
 
-            clientReq.on('error', (err) => {
-                console.warn('Stream proxy network error:', err.message);
-                return resolve(false);
-            });
+            clientReq.on('error', () => resolve(false));
 
             clientReq.setTimeout(15000, () => {
                 clientReq.destroy();
-                console.warn('Stream proxy timeout');
                 return resolve(false);
             });
         } catch (err) {
-            console.warn('Stream proxy exception:', err.message);
             return resolve(false);
         }
     });
@@ -669,7 +749,6 @@ async function getCobaltDirectStream(videoUrl) {
                 port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
                 path: parsed.pathname,
                 method: 'POST',
-                agent: parsed.protocol === 'http:' ? undefined : sslAgent,
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
@@ -704,7 +783,7 @@ async function getCobaltDirectStream(videoUrl) {
                 req.end();
             });
 
-            if (directUrl) return directUrl;
+            if (directUrl && isValidPublicUrl(directUrl)) return directUrl;
         } catch (e) {}
     }
     return null;
@@ -722,7 +801,7 @@ async function getPipedDirectStreamUrl(videoId) {
                                 data.videoStreams.find(s => s.quality === '720p' && s.hasAudio) ||
                                 data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4')) ||
                                 data.videoStreams[0];
-            if (combinedMp4 && combinedMp4.url) {
+            if (combinedMp4 && combinedMp4.url && isValidPublicUrl(combinedMp4.url)) {
                 return { url: combinedMp4.url, title: data.title || 'Tanzeel_Video' };
             }
         }
@@ -743,7 +822,7 @@ async function getInvidiousDirectStreamUrl(videoId) {
                                 data.formatStreams.find(s => s.container === 'mp4' && s.encoding === 'h264') ||
                                 data.formatStreams.find(s => s.container === 'mp4') ||
                                 data.formatStreams[0];
-            if (combinedMp4 && combinedMp4.url) {
+            if (combinedMp4 && combinedMp4.url && isValidPublicUrl(combinedMp4.url)) {
                 return { url: combinedMp4.url, title: data.title || 'Tanzeel_Video' };
             }
         }
@@ -751,18 +830,16 @@ async function getInvidiousDirectStreamUrl(videoId) {
     return null;
 }
 
-app.get(['/download', '/api/download'], async (req, res) => {
+app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
     let url = extractUrlFromQuery(req);
     let id = req.query.id;
     
-    if (!url || !url.trim()) {
+    if (!url || !url.trim() || !isValidPublicUrl(url.trim())) {
         return res.status(400).json({ success: false, message: 'Invalid URL provided' });
     }
 
     const rawUrl = url.trim();
     url = normalizeYouTubeUrl(rawUrl);
-
-    console.log(`[DOWNLOAD REQ] ID: ${id || 'none'}, Raw: "${rawUrl}", Normalized: "${url}"`);
 
     const downloadId = (id && typeof id === 'string') ? id : Math.random().toString(36).substring(2, 10);
     
@@ -778,11 +855,9 @@ app.get(['/download', '/api/download'], async (req, res) => {
 
     // Layer 1: Executable Binary Extractor (yt-dlp)
     const hasBinary = isBinaryAvailable();
-    console.log(`[DOWNLOAD REQ] Binary executable available: ${hasBinary}`);
 
     if (hasBinary) {
         const extractArgs = [
-            '--no-check-certificates',
             '--no-playlist',
             '--no-warnings',
             '--ignore-errors',
@@ -794,8 +869,9 @@ app.get(['/download', '/api/download'], async (req, res) => {
             const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
             extractArgs.push('--ffmpeg-location', ffmpegDir);
         }
-        if (fs.existsSync(cookiesPath)) {
-            extractArgs.push('--cookies', cookiesPath);
+        const cookiesFile = getCookiesPath();
+        if (cookiesFile && fs.existsSync(cookiesFile)) {
+            extractArgs.push('--cookies', cookiesFile);
         }
         extractArgs.push(url);
 
@@ -807,7 +883,7 @@ app.get(['/download', '/api/download'], async (req, res) => {
                     const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
                     const httpLines = lines.filter(l => l.startsWith('http'));
                     const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
-                    if (progressive) {
+                    if (progressive && isValidPublicUrl(progressive)) {
                         return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
                     }
                     resolve(null);
@@ -815,73 +891,53 @@ app.get(['/download', '/api/download'], async (req, res) => {
             });
 
             if (binaryResult && binaryResult.url) {
-                console.log(`[DOWNLOAD] Success via binary extractor: "${binaryResult.title}"`);
                 const piped = await proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (binErr) {
-            console.warn('[DOWNLOAD] Binary extraction exception:', binErr.message);
-        }
+        } catch (binErr) {}
     }
 
     // Layer 2: @distube/ytdl-core JS Extractor
-    console.log('[DOWNLOAD] Trying @distube/ytdl-core JS extractor...');
     try {
         const ytdlResult = await getYtdlCoreStreamUrl(url);
-        if (ytdlResult && ytdlResult.url) {
-            console.log(`[DOWNLOAD] Success via @distube/ytdl-core: "${ytdlResult.title}"`);
+        if (ytdlResult && ytdlResult.url && isValidPublicUrl(ytdlResult.url)) {
             const piped = await proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId);
             if (piped) return;
         }
-    } catch (ytdlErr) {
-        console.warn('[DOWNLOAD] @distube/ytdl-core extraction error:', ytdlErr.message);
-    }
+    } catch (ytdlErr) {}
 
     // Layer 3: Cobalt API Stream
-    console.log('[DOWNLOAD] Trying Cobalt API stream engine...');
     try {
         const cobaltUrl = await getCobaltDirectStream(url);
-        if (cobaltUrl) {
-            console.log('[DOWNLOAD] Success via Cobalt API');
+        if (cobaltUrl && isValidPublicUrl(cobaltUrl)) {
             const piped = await proxyVideoStream(cobaltUrl, 'Tanzeel_Video', res, downloadId);
             if (piped) return;
         }
-    } catch (cobaltErr) {
-        console.warn('[DOWNLOAD] Cobalt stream error:', cobaltErr.message);
-    }
+    } catch (cobaltErr) {}
 
     // Layer 4: Piped API Stream
     if (videoId) {
-        console.log('[DOWNLOAD] Trying Piped API stream engine...');
         try {
             const pipedStream = await getPipedDirectStreamUrl(videoId);
-            if (pipedStream && pipedStream.url) {
-                console.log(`[DOWNLOAD] Success via Piped API: "${pipedStream.title}"`);
+            if (pipedStream && pipedStream.url && isValidPublicUrl(pipedStream.url)) {
                 const piped = await proxyVideoStream(pipedStream.url, sanitizeFilename(pipedStream.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (pipedErr) {
-            console.warn('[DOWNLOAD] Piped stream error:', pipedErr.message);
-        }
+        } catch (pipedErr) {}
     }
 
     // Layer 5: Invidious API Stream
     if (videoId) {
-        console.log('[DOWNLOAD] Trying Invidious API stream engine...');
         try {
             const invidiousStream = await getInvidiousDirectStreamUrl(videoId);
-            if (invidiousStream && invidiousStream.url) {
-                console.log(`[DOWNLOAD] Success via Invidious API: "${invidiousStream.title}"`);
+            if (invidiousStream && invidiousStream.url && isValidPublicUrl(invidiousStream.url)) {
                 const piped = await proxyVideoStream(invidiousStream.url, sanitizeFilename(invidiousStream.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (invErr) {
-            console.warn('[DOWNLOAD] Invidious stream error:', invErr.message);
-        }
+        } catch (invErr) {}
     }
 
     // All extraction layers exhausted: return clean HTTP 400 JSON error
-    console.error('[DOWNLOAD FAILED] All extraction layers failed for URL:', url);
     setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to extract video stream from source.' });
     setTimeout(() => deleteProgress(downloadId), 5000).unref();
 
@@ -897,11 +953,10 @@ app.get(['/download', '/api/download'], async (req, res) => {
 
 // Global catch-all error handling middleware to prevent unhandled 500 server crashes
 app.use((err, req, res, next) => {
-    console.error('Unhandled server error:', err);
     if (!res.headersSent) {
         res.status(400).json({
             success: false,
-            message: err ? (err.message || 'An unexpected request error occurred.') : 'An error occurred'
+            message: 'An unexpected request error occurred.'
         });
     }
 });
