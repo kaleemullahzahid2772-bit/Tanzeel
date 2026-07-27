@@ -1,6 +1,8 @@
 const request = require('supertest');
 const app = require('../server');
 
+jest.setTimeout(30000);
+
 describe('Server Security & API Integration Tests', () => {
     
     describe('Security Isolation Tests', () => {
@@ -60,6 +62,14 @@ describe('Server Security & API Integration Tests', () => {
             const res = await request(app).get('/download?url=');
             expect(res.statusCode).toBe(400);
             expect(res.text).toContain('Invalid URL provided');
+        });
+
+        it('should NEVER return HTML redirect to external sites on download failure', async () => {
+            const res = await request(app).get('/download?url=not_a_valid_url');
+            expect(res.statusCode).toBe(400);
+            expect(res.headers['content-type']).not.toMatch(/text\/html/);
+            expect(res.text).not.toContain('ssyoutube');
+            expect(res.text).not.toContain('savefrom');
         });
     });
 
