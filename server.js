@@ -295,7 +295,9 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             }
             if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                 console.error('Stream proxy HTTP status error:', videoRes.statusCode);
-                if (!res.headersSent) res.status(500).send('Unable to stream video');
+                if (!res.headersSent) {
+                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
+                }
                 if (downloadId) deleteProgress(downloadId);
                 return;
             }
@@ -321,12 +323,12 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             videoRes.pipe(res);
         }).on('error', (err) => {
             console.error('Stream proxy network error:', err);
-            if (!res.headersSent) res.status(500).send('Stream error');
+            if (!res.headersSent) res.status(500).json({ success: false, message: 'Stream connection error.' });
             if (downloadId) deleteProgress(downloadId);
         });
     } catch (err) {
         console.error('Proxy exception:', err);
-        if (!res.headersSent) res.status(500).send('Stream exception');
+        if (!res.headersSent) res.status(500).json({ success: false, message: 'Stream exception.' });
         if (downloadId) deleteProgress(downloadId);
     }
 }
@@ -475,7 +477,7 @@ app.get('/download', async (req, res) => {
         setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to extract video stream.' });
         setTimeout(() => deleteProgress(downloadId), 5000);
         if (!res.headersSent) {
-            return res.status(400).send('Unable to extract video stream.');
+            return res.status(400).json({ success: false, message: 'Unable to extract video stream from link.' });
         }
     }
 
