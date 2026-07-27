@@ -144,7 +144,7 @@ const https = require('https');
 function httpsGetJson(url) {
     return new Promise((resolve) => {
         try {
-            https.get(url, (res) => {
+            https.get(url, { agent: sslAgent }, (res) => {
                 if (res.statusCode !== 200) return resolve(null);
                 let body = '';
                 res.on('data', chunk => body += chunk);
@@ -273,12 +273,15 @@ function normalizeYouTubeUrl(url) {
     return url;
 }
 
+const sslAgent = new https.Agent({ rejectUnauthorized: false });
+
 function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
     try {
         const parsedUrl = new URL(streamUrl);
         const options = {
             hostname: parsedUrl.hostname,
             path: parsedUrl.pathname + parsedUrl.search,
+            agent: sslAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': '*/*'
