@@ -474,9 +474,13 @@ app.get('/download', async (req, res) => {
         '--no-check-certificates',
         '-g',
         '--get-title',
-        '-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+        '-f', '18/22/best[ext=mp4]/best',
         '--js-runtimes', 'node'
     ];
+    if (ffmpegPath) {
+        const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+        extractArgs.push('--ffmpeg-location', ffmpegDir);
+    }
     if (fs.existsSync(cookiesPath)) {
         extractArgs.push('--cookies', cookiesPath);
     }
@@ -488,13 +492,12 @@ app.get('/download', async (req, res) => {
 
         if (!error && stdout) {
             const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
-            if (lines.length >= 2) {
-                rawTitle = lines[0];
-                directUrl = lines[lines.length - 1];
-            } else if (lines.length === 1 && lines[0].startsWith('http')) {
-                directUrl = lines[0];
-            } else if (lines.length === 1) {
-                rawTitle = lines[0];
+            const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
+            if (titleLine) rawTitle = titleLine;
+
+            const httpLines = lines.filter(l => l.startsWith('http') && !l.includes('.m3u8'));
+            if (httpLines.length > 0) {
+                directUrl = httpLines[httpLines.length - 1];
             }
         }
         const safeTitle = sanitizeFilename(rawTitle);
