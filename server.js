@@ -421,7 +421,7 @@ function normalizeYouTubeUrl(url) {
 
 const sslAgent = new https.Agent({ rejectUnauthorized: false });
 
-function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
+function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
     try {
         const parsedUrl = new URL(streamUrl);
         const httpLib = parsedUrl.protocol === 'http:' ? http : https;
@@ -441,10 +441,13 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
         const clientReq = httpLib.get(options, (videoRes) => {
             if ([301, 302, 307, 308].includes(videoRes.statusCode)) {
                 const redirectUrl = videoRes.headers.location;
-                if (redirectUrl) return proxyVideoStream(redirectUrl, safeTitle, res, downloadId);
+                if (redirectUrl) return proxyVideoStream(redirectUrl, safeTitle, res, downloadId, onFail);
             }
             if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                 console.error('Stream proxy HTTP status error:', videoRes.statusCode);
+                if (typeof onFail === 'function') {
+                    return onFail();
+                }
                 if (!res.headersSent) {
                     res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
                 }
@@ -475,17 +478,26 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
 
         clientReq.on('error', (err) => {
             console.error('Stream proxy network error:', err);
+            if (typeof onFail === 'function') {
+                return onFail();
+            }
             if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream connection error.' });
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream connection error.' });
         });
 
         clientReq.setTimeout(15000, () => {
             clientReq.destroy();
+            if (typeof onFail === 'function') {
+                return onFail();
+            }
             if (!res.headersSent) res.status(504).json({ success: false, message: 'Stream request timeout.' });
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream request timeout.' });
         });
     } catch (err) {
         console.error('Proxy exception:', err);
+        if (typeof onFail === 'function') {
+            return onFail();
+        }
         if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream exception.' });
         if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream exception.' });
     }
@@ -676,7 +688,7 @@ app.get('/download', async (req, res) => {
     }
     extractArgs.push(url);
 
-    execFile(ytDlpPath, extractArgs, { timeout: 5000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
+    execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
         let rawTitle = 'Tanzeel_Video';
         let directUrl = null;
 
@@ -694,8 +706,82 @@ app.get('/download', async (req, res) => {
         }
         const safeTitle = sanitizeFilename(rawTitle);
 
+        const runSpawnFallback = () => {
+            const dlArgs = [
+                '--no-check-certificates',
+                '--no-playlist', 
+                '--js-runtimes', 'node',
+                '-f', '18/22/best[ext=mp4]/b/best', 
+                '-o', '-'
+            ];
+            if (ffmpegPath) {
+                const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+                dlArgs.push('--ffmpeg-location', ffmpegDir);
+            }
+            if (fs.existsSync(cookiesPath)) {
+                dlArgs.push('--cookies', cookiesPath);
+            }
+            dlArgs.push(url);
+
+            const subprocess = spawn(ytDlpPath, dlArgs);
+
+            let inactivityTimer = setTimeout(() => {
+                try { subprocess.kill('SIGTERM'); } catch (e) {}
+            }, 60000);
+
+            const resetInactivity = () => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    try { subprocess.kill('SIGTERM'); } catch (e) {}
+                }, 60000);
+            };
+
+            req.on('close', () => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                try { subprocess.kill('SIGTERM'); } catch (e) {}
+            });
+            
+            let hasStartedStreaming = false;
+            subprocess.stdout.on('data', (chunk) => {
+                resetInactivity();
+                if (!hasStartedStreaming) {
+                    hasStartedStreaming = true;
+                    if (!res.headersSent) {
+                        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                        res.header('Content-Type', 'video/mp4');
+                        setContentDispositionHeader(res, safeTitle, 'mp4');
+                    }
+                }
+                res.write(chunk);
+            });
+
+            subprocess.stdout.on('end', () => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                if (!hasStartedStreaming) {
+                    if (!res.headersSent) {
+                        res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
+                    }
+                    if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
+                    return;
+                }
+                res.end();
+                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
+                setTimeout(() => deleteProgress(downloadId), 5000).unref();
+            });
+
+            subprocess.on('error', (err) => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                console.error('yt-dlp spawn error:', err);
+                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Video download error.' });
+                if (!res.headersSent) {
+                    res.status(400).json({ success: false, message: 'Video download error.' });
+                }
+                if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000).unref();
+            });
+        };
+
         if (directUrl && directUrl.startsWith('http') && !directUrl.includes('.m3u8')) {
-            return proxyVideoStream(directUrl, safeTitle, res, downloadId);
+            return proxyVideoStream(directUrl, safeTitle, res, downloadId, runSpawnFallback);
         }
 
         // Fallback stream engines
@@ -716,73 +802,10 @@ app.get('/download', async (req, res) => {
         }
 
         if (streamUrl) {
-            return proxyVideoStream(streamUrl, safeTitle, res, downloadId);
+            return proxyVideoStream(streamUrl, safeTitle, res, downloadId, runSpawnFallback);
         }
 
-        // Fallback: Stream video directly from yt-dlp stdout to client response
-        const dlArgs = [
-            '--no-check-certificates',
-            '--no-playlist', 
-            '--js-runtimes', 'node',
-            '-f', '18/22/best[ext=mp4]/b/best', 
-            '-o', '-'
-        ];
-        if (ffmpegPath) {
-            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
-            dlArgs.push('--ffmpeg-location', ffmpegDir);
-        }
-        if (fs.existsSync(cookiesPath)) {
-            dlArgs.push('--cookies', cookiesPath);
-        }
-        dlArgs.push(url);
-
-        const subprocess = spawn(ytDlpPath, dlArgs);
-        
-        const killTimer = setTimeout(() => {
-            try { subprocess.kill('SIGTERM'); } catch (e) {}
-        }, 8000);
-
-        req.on('close', () => {
-            clearTimeout(killTimer);
-            try { subprocess.kill('SIGTERM'); } catch (e) {}
-        });
-        
-        let hasStartedStreaming = false;
-        subprocess.stdout.on('data', (chunk) => {
-            if (!hasStartedStreaming) {
-                hasStartedStreaming = true;
-                if (!res.headersSent) {
-                    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-                    res.header('Content-Type', 'video/mp4');
-                    setContentDispositionHeader(res, safeTitle, 'mp4');
-                }
-            }
-            res.write(chunk);
-        });
-
-        subprocess.stdout.on('end', () => {
-            clearTimeout(killTimer);
-            if (!hasStartedStreaming) {
-                if (!res.headersSent) {
-                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
-                }
-                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
-                return;
-            }
-            res.end();
-            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
-            setTimeout(() => deleteProgress(downloadId), 5000).unref();
-        });
-
-        subprocess.on('error', (err) => {
-            clearTimeout(killTimer);
-            console.error('yt-dlp spawn error:', err);
-            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Video download error.' });
-            if (!res.headersSent) {
-                res.status(400).json({ success: false, message: 'Video download error.' });
-            }
-            if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000).unref();
-        });
+        runSpawnFallback();
     });
 });
 
