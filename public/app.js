@@ -197,13 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         iframe.src = downloadUrl;
 
-        // Direct window location trigger fallback for mobile browsers & domain environment
-        setTimeout(() => {
-            if (!hasRealProgressStarted && actionBtn.classList.contains('downloading')) {
-                window.location.href = downloadUrl;
-            }
-        }, 1200);
-
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
 
