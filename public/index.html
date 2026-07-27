@@ -8,7 +8,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,24 +18,26 @@
             <div class="blob blob-2"></div>
         </div>
         
-        <header class="app-header" style="position: relative; display: flex; justify-content: center; align-items: center; padding-top: 10px; padding-bottom: 10px;">
+        <header class="app-header">
             <div class="logo-container">
-                <svg class="app-icon" width="56" height="56" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="48" height="48" rx="16" fill="url(#paint0_linear)"/>
-                    <path d="M14 26C14 26 19 22 24 26C29 30 34 26 34 26" stroke="white" stroke-width="4" stroke-linecap="round"/>
-                    <path d="M14 18C14 18 19 14 24 18C29 22 34 18 34 18" stroke="white" stroke-width="4" stroke-linecap="round"/>
-                    <path d="M14 34C14 34 19 30 24 34C29 38 34 34 34 34" stroke="white" stroke-width="4" stroke-linecap="round"/>
-                    <defs>
-                        <linearGradient id="paint0_linear" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-                            <stop stop-color="#10b981"/>
-                            <stop offset="1" stop-color="#059669"/>
-                        </linearGradient>
-                    </defs>
-                </svg>
+                <div class="logo-icon-wrapper">
+                    <svg class="app-icon" width="44" height="44" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="48" height="48" rx="16" fill="url(#paint0_linear)"/>
+                        <path d="M14 26C14 26 19 22 24 26C29 30 34 26 34 26" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+                        <path d="M14 18C14 18 19 14 24 18C29 22 34 18 34 18" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+                        <path d="M14 34C14 34 19 30 24 34C29 38 34 34 34 34" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+                        <defs>
+                            <linearGradient id="paint0_linear" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#059669"/>
+                                <stop offset="1" stop-color="#064e3b"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
                 <div class="logo">Tanzeel</div>
             </div>
-            <button id="favorite-btn" aria-label="Support Tanzeel App" style="position: absolute; right: 0; background: none; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; color: #10b981;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button id="favorite-btn" aria-label="Support Tanzeel App">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                 </svg>
             </button>
@@ -44,50 +46,63 @@
         <main class="container">
             <div class="content-wrapper">
                 <div class="glass-panel main-panel">
-                    <h1 class="hero-title" style="font-family: 'Amiri', serif; font-size: 3.5rem; line-height: 1.2; margin-bottom: 0.5rem; font-weight: 700;">سحر التحميل</h1>
+                    <h1 class="hero-title">سحر التحميل</h1>
                     <p class="hero-subtitle">Paste any video link to get started.</p>
                     
-                    <div class="input-group" style="margin-bottom: 1.5rem;">
+                    <div class="input-group">
+                        <span class="input-icon-left">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                            </svg>
+                        </span>
                         <input type="text" id="link-input" placeholder="Paste link here..." aria-label="Video Link">
                     </div>
 
-                    <div class="status-container" style="margin-bottom: 1.5rem; min-height: 24px;">
-                        <p id="app-status" style="color: var(--text-muted); font-size: 1rem; font-weight: 600; transition: color 0.3s;">Waiting for a valid link...</p>
+                    <div class="status-container">
+                        <p id="app-status">Waiting for a valid link...</p>
                     </div>
 
-                <div class="action-wrapper" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                    <button id="action-btn" class="action-btn" aria-label="Download Video" style="transition: transform 0.3s; margin-bottom: 15px; position: relative; overflow: hidden;">
-                        <svg class="btn-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: relative; z-index: 1;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        <div id="fake-progress-text" style="display: none; font-size: 2rem; font-weight: 700; position: relative; z-index: 1;">0%</div>
-                        <div class="spinner" style="display: none; position: relative; z-index: 1;"></div>
-                    </button>
-                    
-                    <div id="progress-container" style="display: none; width: 100%; max-width: 320px; text-align: left; margin-top: 5px;">
-                        <div id="progress-bar-wrapper" style="width: 100%; height: 8px; background-color: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; margin-bottom: 12px;">
-                            <div id="progress-bar-bg" style="height: 100%; width: 0%; background-color: #10b981; transition: width 0.3s ease;"></div>
-                        </div>
+                    <div class="action-wrapper">
+                        <button id="action-btn" class="action-btn" aria-label="Download Video">
+                            <svg class="btn-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <div id="fake-progress-text" style="display: none; font-size: 1.8rem; font-weight: 700; position: relative; z-index: 1;">0%</div>
+                            <div class="spinner" style="display: none; position: relative; z-index: 1;"></div>
+                        </button>
                         
-                        <div id="stats-details" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span>Downloaded: <span id="stat-downloaded" style="color: white;">--</span> / <span id="stat-total" style="color: white;">--</span></span>
-                                <span id="stat-percent" style="color: #10b981; font-weight: 700; font-size: 1rem;">0%</span>
+                        <div id="progress-container" style="display: none; width: 100%; max-width: 320px; text-align: left; margin-top: 15px;">
+                            <div id="progress-bar-wrapper" style="width: 100%; height: 8px; background-color: rgba(6, 78, 59, 0.1); border-radius: 10px; overflow: hidden; margin-bottom: 12px;">
+                                <div id="progress-bar-bg" style="height: 100%; width: 0%; background-color: #047857; transition: width 0.3s ease;"></div>
                             </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>Remaining: <span id="stat-remaining" style="color: white;">--</span></span>
+                            
+                            <div id="stats-details" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; color: var(--text-muted); font-weight: 500;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Downloaded: <span id="stat-downloaded" style="color: var(--primary-dark); font-weight: 600;">--</span> / <span id="stat-total" style="color: var(--primary-dark); font-weight: 600;">--</span></span>
+                                    <span id="stat-percent" style="color: #047857; font-weight: 700; font-size: 0.95rem;">0%</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Remaining: <span id="stat-remaining" style="color: var(--primary-dark); font-weight: 600;">--</span></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(6, 78, 59, 0.1); font-size: 0.82rem;">
+                                    <span>Speed: <span id="stat-speed" style="color: var(--primary-dark); font-weight: 600;">--</span></span>
+                                    <span>ETA: <span id="stat-eta" style="color: var(--primary-dark); font-weight: 600;">--</span></span>
+                                </div>
                             </div>
-                            <div style="display: flex; justify-content: space-between; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem;">
-                                <span>Speed: <span id="stat-speed" style="color: white;">--</span></span>
-                                <span>ETA: <span id="stat-eta" style="color: white;">--</span></span>
-                            </div>
+                            <p id="download-stats" style="color: #047857; font-size: 0.92rem; font-weight: 600; margin-top: 10px; text-align: center;"></p>
                         </div>
-                        <p id="download-stats" style="color: #10b981; font-size: 0.95rem; font-weight: 600; margin-top: 10px; text-align: center;"></p>
                     </div>
-                </div>
                 </div>
 
                 <!-- Download Options Modal / Section -->
                 <div id="results-panel" class="glass-panel results-panel hidden">
-                    <h2 class="results-title">Available Downloads</h2>
+                    <div class="results-title-wrapper">
+                        <span class="title-badge"></span>
+                        <h2 class="results-title">Available Downloads</h2>
+                    </div>
                     <div class="options-list" id="options-list">
                         <!-- Populated by JS -->
                     </div>
@@ -95,35 +110,35 @@
             </div>
         </main>
         
-        <footer style="text-align: center; margin-top: auto; padding: 24px 0 10px; color: var(--text-muted); font-size: 0.85rem; opacity: 0.7; font-weight: 500;">
+        <footer>
             A project by Al-Ulama and Sudoor.org
         </footer>
     </div>
 
-    <div id="support-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: var(--surface); padding: 24px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
-            <h2 style="margin: 0 0 12px 0; font-size: 1.5rem; color: white;">Support Tanzeel App 💚</h2>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">If Tanzeel is useful to you, a small tip can help keep it running — completely optional 💚</p>
+    <div id="support-modal">
+        <div>
+            <h2 style="margin: 0 0 10px 0; font-size: 1.4rem; color: var(--primary-dark); font-weight: 700;">Support Tanzeel App 💚</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5;">If Tanzeel is useful to you, a small tip can help keep it running — completely optional 💚</p>
             
-            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: left;">
-                <div style="color: #10b981; font-weight: 600; margin-bottom: 12px; font-size: 1.05rem;">🟢 Donate via Raast ID</div>
-                <div style="color: white; font-size: 0.95rem; line-height: 1.6;">
-                    <div><span style="color: var(--text-muted);">Raast ID:</span> 03274816872</div>
+            <div style="background: rgba(4, 120, 87, 0.06); border: 1.5px solid rgba(4, 120, 87, 0.15); border-radius: 16px; padding: 16px; margin-bottom: 20px; text-align: left;">
+                <div style="color: var(--primary-dark); font-weight: 700; margin-bottom: 10px; font-size: 1rem;">🟢 Donate via Raast ID</div>
+                <div style="color: var(--text-main); font-size: 0.9rem; line-height: 1.6;">
+                    <div><span style="color: var(--text-muted);">Raast ID:</span> <strong>03274816872</strong></div>
                     <div><span style="color: var(--text-muted);">Email:</span> kaleemullahzahid2772@gmail.com</div>
                     <div><span style="color: var(--text-muted);">Nick:</span> Kaleem Ullah Zahid</div>
                 </div>
             </div>
             
-            <p style="color: white; font-weight: 500; margin-bottom: 24px;">Thank you for your support!</p>
+            <p style="color: var(--primary-dark); font-weight: 600; margin-bottom: 20px; font-size: 0.95rem;">Thank you for your support!</p>
             
             <div style="display: flex; gap: 8px; justify-content: space-between;">
-                <button id="copy-email-btn" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.85rem;">COPY EMAIL</button>
-                <button id="close-modal-btn" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.85rem;">CLOSE</button>
-                <button id="copy-raast-btn" style="flex: 1; padding: 10px; background: #10b981; border: none; border-radius: 8px; color: #0f172a; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.85rem;">COPY RAAST ID</button>
+                <button id="copy-email-btn" style="flex: 1; padding: 10px; background: rgba(6, 78, 59, 0.08); border: none; border-radius: 12px; color: var(--primary-dark); font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.8rem;">COPY EMAIL</button>
+                <button id="close-modal-btn" style="flex: 1; padding: 10px; background: rgba(6, 78, 59, 0.08); border: none; border-radius: 12px; color: var(--primary-dark); font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.8rem;">CLOSE</button>
+                <button id="copy-raast-btn" style="flex: 1; padding: 10px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);">COPY RAAST</button>
             </div>
         </div>
     </div>
 
-    <script src="app.js?v=10"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>
