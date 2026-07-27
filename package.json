@@ -1,6 +1,6 @@
 {
   "name": "rawafid-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tanzeel - Premium Video Downloader",
   "main": "server.js",
   "scripts": {
