@@ -5,11 +5,21 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-let ffmpeg = null;
+let ffmpegPath = null;
 try {
-    ffmpeg = require('ffmpeg-static');
+    const staticPath = require('ffmpeg-static');
+    if (staticPath && fs.existsSync(staticPath)) {
+        ffmpegPath = staticPath;
+    }
 } catch (e) {
     console.warn('ffmpeg-static module load warning:', e.message);
+}
+
+if (!ffmpegPath) {
+    const localFfmpeg = path.join(__dirname, 'ffmpeg-master-latest-win64-gpl', 'bin', 'ffmpeg.exe');
+    if (fs.existsSync(localFfmpeg)) {
+        ffmpegPath = localFfmpeg;
+    }
 }
 
 const progressMap = new Map();
@@ -187,7 +197,7 @@ app.post('/analyze', async (req, res) => {
             return res.status(200).json(fallbackResult);
         }
 
-        const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
+        const args = ['--no-playlist', '--no-check-certificates', '--dump-json', '--js-runtimes', 'node'];
         if (fs.existsSync(cookiesPath)) {
             args.push('--cookies', cookiesPath);
         }
@@ -452,7 +462,7 @@ app.get('/download', async (req, res) => {
     }
 
     const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
-    const titleArgs = ['--no-playlist', '--get-title', '--js-runtimes', 'node'];
+    const titleArgs = ['--no-playlist', '--no-check-certificates', '--get-title', '--js-runtimes', 'node'];
     if (fs.existsSync(cookiesPath)) {
         titleArgs.push('--cookies', cookiesPath);
     }
@@ -467,12 +477,15 @@ app.get('/download', async (req, res) => {
 
         const dlArgs = [
             '--no-playlist', 
+            '--no-check-certificates',
             '-S', 'vcodec:h264,res,acodec:m4a', 
             '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 
             '--merge-output-format', 'mp4', 
-            '--ffmpeg-location', ffmpeg, 
             '--js-runtimes', 'node'
         ];
+        if (ffmpegPath) {
+            dlArgs.push('--ffmpeg-location', ffmpegPath);
+        }
         if (fs.existsSync(cookiesPath)) {
             dlArgs.push('--cookies', cookiesPath);
         }
@@ -504,7 +517,7 @@ app.get('/download', async (req, res) => {
             }
         });
 
-        subprocess.on('close', (code) => {
+        subprocess.on('close', async (code) => {
             if (code === 0 && fs.existsSync(tempFilePath)) {
                 const currentData = getProgress(downloadId);
                 setProgress(downloadId, { percent: 100, size: currentData?.size || 'Done', status: 'Complete' });
@@ -522,13 +535,36 @@ app.get('/download', async (req, res) => {
                     setTimeout(() => deleteProgress(downloadId), 5000);
                 });
             } else {
-                if (!res.headersSent) {
-                    res.status(500).send('Failed to download video');
-                }
                 if (fs.existsSync(tempFilePath)) {
                     try { fs.unlinkSync(tempFilePath); } catch (e) {}
                 }
-                deleteProgress(downloadId);
+                
+                // Fallback stream engine if local yt-dlp binary encounters an error
+                let streamUrl = null;
+                try { streamUrl = await getCobaltDirectStream(url); } catch (e) {}
+                const videoId = extractYouTubeId(url);
+                if (!streamUrl && videoId) {
+                    try {
+                        const piped = await getPipedDirectStreamUrl(videoId);
+                        if (piped && piped.url) streamUrl = piped.url;
+                    } catch (e) {}
+                }
+                if (!streamUrl && videoId) {
+                    try {
+                        const inv = await getInvidiousDirectStreamUrl(videoId);
+                        if (inv && inv.url) streamUrl = inv.url;
+                    } catch (e) {}
+                }
+
+                if (streamUrl) {
+                    return proxyVideoStream(streamUrl, safeTitle, res, downloadId);
+                }
+
+                setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to download video' });
+                if (!res.headersSent) {
+                    res.status(500).send('Failed to download video');
+                }
+                setTimeout(() => deleteProgress(downloadId), 5000);
             }
         });
     });
