@@ -131,11 +131,22 @@ app.get('/favicon.ico', (req, res) => {
     return res.status(204).end();
 });
 
-// Serve static files exclusively from public/ directory for security
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files exclusively from public/ directory for security with strict anti-caching headers
+app.use(express.static(path.join(__dirname, 'public'), {
+    etag: false,
+    lastModified: false,
+    setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
 
 // Explicit root route handler for Vercel and serverless deployments
 app.get('/', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const indexPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(indexPath)) {
         return res.sendFile(indexPath, (err) => {
