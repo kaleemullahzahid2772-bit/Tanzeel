@@ -117,11 +117,16 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
-// Handle favicon.ico cleanly to avoid serverless 404 errors
+// Handle favicon.ico cleanly to avoid any browser 404 errors
 app.get('/favicon.ico', (req, res) => {
     const iconPath = path.join(__dirname, 'public', 'favicon.ico');
     if (fs.existsSync(iconPath)) {
-        return res.sendFile(iconPath);
+        res.setHeader('Content-Type', 'image/x-icon');
+        return res.sendFile(iconPath, (err) => {
+            if (err && !res.headersSent) {
+                res.status(204).end();
+            }
+        });
     }
     return res.status(204).end();
 });
