@@ -540,15 +540,17 @@ app.get('/download', async (req, res) => {
             return proxyVideoStream(streamUrl, safeTitle, res, downloadId);
         }
 
-        // Fallback: spawn disk download if stream URL extraction wasn't available
-        const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
+        // Fallback: Stream video directly from yt-dlp stdout to client response
+        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.header('Content-Type', 'video/mp4');
+        setContentDispositionHeader(res, safeTitle, 'mp4');
+
         const dlArgs = [
             '--no-playlist', 
             '--no-check-certificates',
-            '-S', 'vcodec:h264,res,acodec:m4a', 
-            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 
-            '--merge-output-format', 'mp4', 
-            '--js-runtimes', 'node'
+            '-f', '18/22/b/best', 
+            '--js-runtimes', 'node',
+            '-o', '-'
         ];
         if (ffmpegPath) {
             const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
@@ -557,50 +559,20 @@ app.get('/download', async (req, res) => {
         if (fs.existsSync(cookiesPath)) {
             dlArgs.push('--cookies', cookiesPath);
         }
-        dlArgs.push('-o', tempFilePath, url);
-        const subprocess = spawn(ytDlpPath, dlArgs);
+        dlArgs.push(url);
 
-        subprocess.stderr.on('data', (data) => {
-            const output = data.toString();
-            const match = output.match(/\[download\]\s+([\d\.]+)%\s+of\s+~?\s*([\d\.]+[a-zA-Z]+)(?:\s+at\s+([^\s]+)\s+ETA\s+([^\s]+))?/);
-            if (match) {
-                setProgress(downloadId, { 
-                    percent: parseFloat(match[1]), 
-                    size: match[2], 
-                    speed: match[3] || 'Calculating...',
-                    eta: match[4] || 'Calculating...',
-                    status: 'Downloading...' 
-                });
-            }
+        const subprocess = spawn(ytDlpPath, dlArgs);
+        subprocess.stdout.pipe(res);
+
+        subprocess.on('close', (code) => {
+            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
+            setTimeout(() => deleteProgress(downloadId), 5000);
         });
 
-        subprocess.on('close', async (code) => {
-            if (code === 0 && fs.existsSync(tempFilePath)) {
-                const currentData = getProgress(downloadId);
-                setProgress(downloadId, { percent: 100, size: currentData?.size || 'Done', status: 'Complete' });
-                
-                res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-                res.header('Pragma', 'no-cache');
-                res.header('Expires', '0');
-                res.header('Content-Type', 'video/mp4');
-                setContentDispositionHeader(res, safeTitle, 'mp4');
-
-                res.sendFile(tempFilePath, (err) => {
-                    if (fs.existsSync(tempFilePath)) {
-                        try { fs.unlinkSync(tempFilePath); } catch (e) {}
-                    }
-                    setTimeout(() => deleteProgress(downloadId), 5000);
-                });
-            } else {
-                if (fs.existsSync(tempFilePath)) {
-                    try { fs.unlinkSync(tempFilePath); } catch (e) {}
-                }
-                setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to download video' });
-                if (!res.headersSent) {
-                    res.status(500).send('Failed to download video');
-                }
-                setTimeout(() => deleteProgress(downloadId), 5000);
-            }
+        subprocess.on('error', (err) => {
+            console.error('yt-dlp spawn error:', err);
+            if (!res.headersSent) res.status(500).send('Video stream error');
+            if (downloadId) deleteProgress(downloadId);
         });
     });
 });
