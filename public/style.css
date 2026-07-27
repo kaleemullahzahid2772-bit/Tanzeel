@@ -148,8 +148,6 @@ body {
     border-radius: 50%;
 }
 
-}
-
 /* Info Modal Trigger Button on Top Left */
 #info-btn {
     position: absolute;
@@ -561,24 +559,6 @@ footer::before {
 @keyframes modalSlide {
     from { opacity: 0; transform: translateY(20px) scale(0.95); }
     to { opacity: 1; transform: translateY(0) scale(1); }
-}
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-}
-
-#support-modal > div {
-    background: #ffffff;
-    padding: 28px 24px;
-    border-radius: 28px;
-    width: 90%;
-    max-width: 400px;
-    text-align: center;
-    border: 1.5px solid rgba(6, 78, 59, 0.12);
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
-    position: relative;
 }
 
 @media (max-width: 480px) {
