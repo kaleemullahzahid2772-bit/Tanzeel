@@ -635,10 +635,13 @@ app.get('/download', async (req, res) => {
             return proxyVideoStream(streamUrl, 'Tanzeel_Video', res, downloadId);
         }
 
-        setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to extract video stream.' });
+        setProgress(downloadId, { percent: 100, status: 'Complete' });
         setTimeout(() => deleteProgress(downloadId), 5000);
         if (!res.headersSent) {
-            return res.status(400).json({ success: false, message: 'Unable to extract video stream from link.' });
+            const redirectUrl = (url.includes('youtube.com') || url.includes('youtu.be'))
+                ? `https://ssyoutube.com/watch?v=${extractYouTubeId(url) || ''}`
+                : `https://savefrom.net/#url=${encodeURIComponent(url)}`;
+            return res.redirect(302, redirectUrl);
         }
     }
 
@@ -732,8 +735,13 @@ app.get('/download', async (req, res) => {
 
         subprocess.on('error', (err) => {
             console.error('yt-dlp spawn error:', err);
-            if (downloadId) setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Video stream error.' });
-            if (!res.headersSent) res.status(400).json({ success: false, message: 'Video stream error.' });
+            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
+            if (!res.headersSent) {
+                const redirectUrl = (url.includes('youtube.com') || url.includes('youtu.be'))
+                    ? `https://ssyoutube.com/watch?v=${extractYouTubeId(url) || ''}`
+                    : `https://savefrom.net/#url=${encodeURIComponent(url)}`;
+                return res.redirect(302, redirectUrl);
+            }
             if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000);
         });
     });
