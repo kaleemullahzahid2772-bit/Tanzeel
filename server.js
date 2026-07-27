@@ -380,7 +380,8 @@ async function getPipedDirectStreamUrl(videoId) {
     const pipedInstances = [
         `https://api.piped.video/streams/${videoId}`,
         `https://pipedapi.kavin.rocks/streams/${videoId}`,
-        `https://pipedapi.mha.fi/streams/${videoId}`
+        `https://pipedapi.mha.fi/streams/${videoId}`,
+        `https://pipedapi.privacydev.net/streams/${videoId}`
     ];
     for (const instUrl of pipedInstances) {
         const data = await httpsGetJson(instUrl);
@@ -399,8 +400,10 @@ async function getPipedDirectStreamUrl(videoId) {
 async function getInvidiousDirectStreamUrl(videoId) {
     const instances = [
         `https://inv.tux.pizza/api/v1/videos/${videoId}`,
+        `https://yewtu.be/api/v1/videos/${videoId}`,
         `https://vid.puffyan.us/api/v1/videos/${videoId}`,
-        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`
+        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
+        `https://invidious.flokinet.to/api/v1/videos/${videoId}`
     ];
     for (const instUrl of instances) {
         const data = await httpsGetJson(instUrl);
