@@ -34,7 +34,7 @@
                 </svg>
                 <div class="logo">Tanzeel</div>
             </div>
-            <button id="favorite-btn" style="position: absolute; right: 0; background: none; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+            <button id="favorite-btn" aria-label="Support Tanzeel App" style="position: absolute; right: 0; background: none; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; color: #10b981;">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                 </svg>
@@ -51,12 +51,12 @@
                         <input type="text" id="link-input" placeholder="Paste link here..." aria-label="Video Link">
                     </div>
 
-                    <div class="status-container" style="margin-bottom: 2rem; height: 24px;">
-                    <p id="app-status" style="color: var(--text-muted); font-size: 1rem; font-weight: 600; transition: color 0.3s;">Checking clipboard...</p>
-                </div>
+                    <div class="status-container" style="margin-bottom: 1.5rem; min-height: 24px;">
+                        <p id="app-status" style="color: var(--text-muted); font-size: 1rem; font-weight: 600; transition: color 0.3s;">Waiting for a valid link...</p>
+                    </div>
 
                 <div class="action-wrapper" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                    <button id="action-btn" class="action-btn" style="transition: transform 0.3s; margin-bottom: 15px; position: relative; overflow: hidden;">
+                    <button id="action-btn" class="action-btn" aria-label="Download Video" style="transition: transform 0.3s; margin-bottom: 15px; position: relative; overflow: hidden;">
                         <svg class="btn-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: relative; z-index: 1;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         <div id="fake-progress-text" style="display: none; font-size: 2rem; font-weight: 700; position: relative; z-index: 1;">0%</div>
                         <div class="spinner" style="display: none; position: relative; z-index: 1;"></div>
