@@ -63,5 +63,28 @@ describe('Server Security & API Integration Tests', () => {
             expect(res.statusCode).toBe(200);
             expect(res.body).toEqual({ success: false });
         });
+
+        it('should return success: false for prototype pollution keys', async () => {
+            const res1 = await request(app).get('/progress?id=__proto__');
+            expect(res1.statusCode).toBe(200);
+            expect(res1.body).toEqual({ success: false });
+
+            const res2 = await request(app).get('/progress?id=toString');
+            expect(res2.statusCode).toBe(200);
+            expect(res2.body).toEqual({ success: false });
+        });
+    });
+
+    describe('Body Parser Error Handling', () => {
+        it('should return 400 Bad Request on malformed JSON payload', async () => {
+            const res = await request(app)
+                .post('/analyze')
+                .set('Content-Type', 'application/json')
+                .send('{ invalid_json: ');
+            
+            expect(res.statusCode).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.message).toBe('Invalid JSON request payload');
+        });
     });
 });
