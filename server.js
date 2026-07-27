@@ -54,19 +54,36 @@ function deleteProgress(id) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isWin = process.platform === 'win32';
-const defaultYtDlp = isWin ? path.join(__dirname, 'downloader.exe') : 'yt-dlp';
-let ytDlpPath = process.env.YTDLP_PATH || defaultYtDlp;
-try {
-    if (fs.existsSync(defaultYtDlp)) {
-        ytDlpPath = defaultYtDlp;
+const winBinary = path.join(__dirname, 'downloader.exe');
+const linuxBinary = path.join(__dirname, 'yt-dlp');
+
+let ytDlpPath = process.env.YTDLP_PATH;
+if (!ytDlpPath) {
+    if (isWin && fs.existsSync(winBinary)) {
+        ytDlpPath = winBinary;
+    } else if (!isWin && fs.existsSync(linuxBinary)) {
+        ytDlpPath = linuxBinary;
+        try { fs.chmodSync(linuxBinary, '755'); } catch (e) {}
+    } else {
+        ytDlpPath = isWin ? winBinary : linuxBinary;
     }
-} catch (e) {}
+}
+
+let ytdlCore = null;
+try {
+    ytdlCore = require('@distube/ytdl-core');
+} catch (e) {
+    console.warn('@distube/ytdl-core load warning:', e.message);
+}
 
 let binaryAvailabilityCache = null;
 function isBinaryAvailable() {
     if (binaryAvailabilityCache !== null) return binaryAvailabilityCache;
     try {
-        if (fs.existsSync(ytDlpPath)) {
+        if (typeof ytDlpPath === 'string' && fs.existsSync(ytDlpPath)) {
+            if (!isWin) {
+                try { fs.chmodSync(ytDlpPath, '755'); } catch (e) {}
+            }
             binaryAvailabilityCache = true;
             return true;
         }

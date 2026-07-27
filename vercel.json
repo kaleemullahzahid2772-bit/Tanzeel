@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "server.js": {
-      "includeFiles": "{public/**,cookies.txt}"
+      "includeFiles": "{public/**,cookies.txt,yt-dlp}"
     }
   },
   "headers": [
