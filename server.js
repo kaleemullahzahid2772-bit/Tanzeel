@@ -469,9 +469,7 @@ app.get('/download', async (req, res) => {
         }
 
         if (streamUrl) {
-            setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
-            setTimeout(() => deleteProgress(downloadId), 5000);
-            return res.redirect(302, streamUrl);
+            return proxyVideoStream(streamUrl, 'Tanzeel_Video', res, downloadId);
         }
 
         setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to extract video stream.' });

@@ -183,8 +183,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render prominent download card option in results panel
         renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
 
-        // Trigger browser file download (attachment content-disposition avoids page reload)
-        window.location.href = downloadUrl;
+        // Trigger browser file download via hidden iframe (prevents ERR_INVALID_RESPONSE screen crashes)
+        let iframe = document.getElementById('download-frame');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'download-frame';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = downloadUrl;
 
         let pollCount = 0;
         const maxPolls = 60; // 30 seconds max polling duration
