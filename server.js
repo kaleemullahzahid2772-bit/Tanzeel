@@ -455,15 +455,17 @@ app.get('/download', async (req, res) => {
             } catch (e) {}
         }
 
-        setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
-        setTimeout(() => deleteProgress(downloadId), 5000);
-
         if (streamUrl) {
+            setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
+            setTimeout(() => deleteProgress(downloadId), 5000);
             return res.redirect(302, streamUrl);
         }
 
-        // Fallback: Redirect to fast video stream engine
-        return res.redirect(302, `https://api.cobalt.tools`);
+        setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Unable to extract video stream.' });
+        setTimeout(() => deleteProgress(downloadId), 5000);
+        if (!res.headersSent) {
+            return res.status(400).send('Unable to extract video stream.');
+        }
     }
 
     const tempFilePath = path.join(downloadsDir, `dl_${downloadId}.mp4`);
