@@ -17,15 +17,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const getApiUrl = (endpoint) => {
+        if (window.location.protocol === 'file:') {
+            return `http://localhost:3000${endpoint}`;
+        }
+        return endpoint;
+    };
+
     const updateStatus = (text, color = "var(--text-muted)") => {
         appStatus.textContent = text;
         appStatus.style.color = color;
     };
 
+    // Auto-detect link from clipboard if available
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(text => {
+            if (text && isValidUrl(text.trim())) {
+                linkInput.value = text.trim();
+                updateStatus("Link detected! Click to download.", "var(--primary)");
+            }
+        }).catch(() => {});
+    }
+
     // Real API Call with safe JSON parsing
     const analyzeLink = async (url) => {
         try {
-            const response = await fetch("/analyze", {
+            const response = await fetch(getApiUrl("/analyze"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -158,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let failedPolls = 0;
         
         const downloadId = Math.random().toString(36).substring(2, 10);
-        const downloadUrl = `/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`;
+        const downloadUrl = getApiUrl(`/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`);
         
         // Trigger download using hidden iframe to prevent page navigation or reload glitches
         let downloadIframe = document.getElementById('hidden-download-iframe');
@@ -188,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pollInterval = setInterval(async () => {
             try {
                 pollCount++;
-                const res = await fetch(`/progress?id=${downloadId}`);
+                const res = await fetch(getApiUrl(`/progress?id=${downloadId}`));
                 if (!res.ok) {
                     failedPolls++;
                 } else {
