@@ -23,7 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return `http://localhost:3000${endpoint}`;
         }
         if (window.API_BASE_URL && typeof window.API_BASE_URL === 'string') {
-            return `${window.API_BASE_URL}${endpoint}`;
+            const baseUrl = window.API_BASE_URL.replace(/\/+$/, '');
+            return `${baseUrl}${endpoint}`;
+        }
+        if (window.TANZEEL_CONFIG && typeof window.TANZEEL_CONFIG.apiBaseUrl === 'string') {
+            const baseUrl = window.TANZEEL_CONFIG.apiBaseUrl.replace(/\/+$/, '');
+            return `${baseUrl}${endpoint}`;
         }
         return endpoint;
     };
@@ -222,10 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (!data.success) {
                         failedPolls++;
-                        // If progress API returns false 6 times (3 seconds) without starting real progress,
+                        // If progress API returns false 10 times (5 seconds) without starting real progress,
                         // direct attachment stream or background download has dispatched to browser.
-                        if (failedPolls >= 6 && !hasRealProgressStarted) {
-                            return resetBtnState("Download dispatched! Check your Downloads folder.", "#059669");
+                        if (failedPolls >= 10 && !hasRealProgressStarted) {
+                            return resetBtnState("Download dispatched to browser! Check your Downloads folder.", "#059669");
                         }
                     } else if (data.success && data.data) {
                         failedPolls = 0;
@@ -285,12 +290,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (pollCount >= maxPolls && !hasRealProgressStarted) {
-                    resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
+                    resetBtnState("Download request finished. Check your Downloads folder.", "#059669");
                 }
             } catch (e) {
                 console.error('Polling error:', e);
                 failedPolls++;
-                if (failedPolls >= 6 && !hasRealProgressStarted) {
+                if (failedPolls >= 10 && !hasRealProgressStarted) {
                     resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
                 }
             }
