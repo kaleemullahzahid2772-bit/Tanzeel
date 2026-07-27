@@ -73,7 +73,7 @@ function isBinaryAvailable() {
             binaryAvailabilityCache = true;
             return true;
         }
-        if (ytDlpPath === 'yt-dlp') {
+        if (ytDlpPath === 'yt-dlp' || (typeof ytDlpPath === 'string' && ytDlpPath.endsWith('yt-dlp'))) {
             const whichCmd = isWin ? 'where yt-dlp' : 'which yt-dlp';
             const { execSync } = require('child_process');
             execSync(whichCmd, { stdio: 'ignore' });
@@ -87,6 +87,90 @@ function isBinaryAvailable() {
     binaryAvailabilityCache = false;
     return false;
 }
+
+let isDownloadingBinary = false;
+function downloadBinaryIfNeeded() {
+    return new Promise((resolve) => {
+        if (isBinaryAvailable()) {
+            return resolve(ytDlpPath);
+        }
+        const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
+        const tmpPath = path.join(os.tmpdir(), targetName);
+
+        if (fs.existsSync(tmpPath)) {
+            try {
+                const stats = fs.statSync(tmpPath);
+                if (stats.size > 1000000) {
+                    ytDlpPath = tmpPath;
+                    binaryAvailabilityCache = true;
+                    return resolve(ytDlpPath);
+                }
+            } catch (e) {}
+        }
+
+        if (isDownloadingBinary) {
+            return resolve(null);
+        }
+        isDownloadingBinary = true;
+
+        console.log('yt-dlp binary missing on server. Auto-downloading standalone binary to:', tmpPath);
+        const downloadUrl = isWin 
+            ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+            : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+
+        function fetchFile(url, dest, attempts = 0) {
+            if (attempts > 5) {
+                isDownloadingBinary = false;
+                return resolve(null);
+            }
+            https.get(url, { agent: sslAgent }, (res) => {
+                if ([301, 302, 307, 308].includes(res.statusCode)) {
+                    if (res.headers.location) {
+                        return fetchFile(res.headers.location, dest, attempts + 1);
+                    }
+                }
+                if (res.statusCode !== 200) {
+                    console.warn('Failed to download yt-dlp binary. HTTP status:', res.statusCode);
+                    isDownloadingBinary = false;
+                    return resolve(null);
+                }
+                const fileStream = fs.createWriteStream(dest);
+                res.pipe(fileStream);
+                fileStream.on('finish', () => {
+                    fileStream.close(() => {
+                        try {
+                            if (!isWin) {
+                                fs.chmodSync(dest, '755');
+                            }
+                            ytDlpPath = dest;
+                            binaryAvailabilityCache = true;
+                            isDownloadingBinary = false;
+                            console.log('yt-dlp binary successfully downloaded & cached at:', dest);
+                            resolve(dest);
+                        } catch (e) {
+                            console.error('Error setting permissions on downloaded binary:', e);
+                            isDownloadingBinary = false;
+                            resolve(null);
+                        }
+                    });
+                });
+                fileStream.on('error', (err) => {
+                    fs.unlink(dest, () => {});
+                    console.error('File stream error while downloading yt-dlp:', err);
+                    isDownloadingBinary = false;
+                    resolve(null);
+                });
+            }).on('error', (err) => {
+                console.error('Network error downloading yt-dlp:', err);
+                isDownloadingBinary = false;
+                resolve(null);
+            });
+        }
+        fetchFile(downloadUrl, tmpPath);
+    });
+}
+// Trigger background download on server boot if binary is not present
+downloadBinaryIfNeeded().catch(() => {});
 
 const cookiesPath = path.join(__dirname, 'cookies.txt');
 const downloadsDir = path.join(os.tmpdir(), 'tanzeel_downloads');
@@ -240,8 +324,12 @@ app.post('/analyze', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid URL provided' });
         }
 
-        // On Vercel / serverless cloud environment where binary is missing, use instant API fallback
-        const hasBinary = isBinaryAvailable();
+        // On cloud/serverless environment where binary is missing, attempt auto-download or use fallback
+        let hasBinary = isBinaryAvailable();
+        if (!hasBinary) {
+            await downloadBinaryIfNeeded();
+            hasBinary = isBinaryAvailable();
+        }
 
         if (!hasBinary) {
             const fallbackResult = await fallbackAnalyze(url);
@@ -496,7 +584,11 @@ app.get('/download', async (req, res) => {
         status: 'Downloading...' 
     });
 
-    const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
+    let hasBinary = isBinaryAvailable();
+    if (!hasBinary) {
+        await downloadBinaryIfNeeded();
+        hasBinary = isBinaryAvailable();
+    }
 
     // Fallback if binary is not present on environment
     if (!hasBinary) {
