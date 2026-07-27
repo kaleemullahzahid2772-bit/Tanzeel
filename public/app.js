@@ -1,3 +1,4 @@
+// Tanzeel Video Downloader Front-end App v1.0.2
 document.addEventListener('DOMContentLoaded', () => {
     const actionBtn = document.getElementById('action-btn');
     const resultsPanel = document.getElementById('results-panel');
