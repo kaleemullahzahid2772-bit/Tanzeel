@@ -269,6 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 resetBtnState("Video saved to gallery.", "#059669");
                                 downloadStats.textContent = '';
                             }, 2000);
+                        } else if (info.status === 'Failed') {
+                            resetBtnState(info.message || "Download failed. Please try another link.", "red");
                         }
                     }
                 }
