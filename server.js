@@ -61,6 +61,33 @@ try {
     }
 } catch (e) {}
 
+let binaryAvailabilityCache = null;
+function isBinaryAvailable() {
+    if (binaryAvailabilityCache !== null) return binaryAvailabilityCache;
+    try {
+        if (fs.existsSync(ytDlpPath)) {
+            binaryAvailabilityCache = true;
+            return true;
+        }
+        if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+            binaryAvailabilityCache = true;
+            return true;
+        }
+        if (ytDlpPath === 'yt-dlp') {
+            const whichCmd = isWin ? 'where yt-dlp' : 'which yt-dlp';
+            const { execSync } = require('child_process');
+            execSync(whichCmd, { stdio: 'ignore' });
+            binaryAvailabilityCache = true;
+            return true;
+        }
+    } catch (e) {
+        binaryAvailabilityCache = false;
+        return false;
+    }
+    binaryAvailabilityCache = false;
+    return false;
+}
+
 const cookiesPath = path.join(__dirname, 'cookies.txt');
 const downloadsDir = path.join(os.tmpdir(), 'tanzeel_downloads');
 try {
@@ -151,11 +178,11 @@ app.get('/', (req, res) => {
     if (fs.existsSync(indexPath)) {
         return res.sendFile(indexPath, (err) => {
             if (err && !res.headersSent) {
-                res.redirect(302, '/index.html');
+                res.status(404).send('Index file not found');
             }
         });
     }
-    res.redirect(302, '/index.html');
+    res.status(404).send('Index file not found');
 });
 
 const https = require('https');
@@ -214,7 +241,7 @@ app.post('/analyze', async (req, res) => {
         }
 
         // On Vercel / serverless cloud environment where binary is missing, use instant API fallback
-        const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
+        const hasBinary = isBinaryAvailable();
 
         if (!hasBinary) {
             const fallbackResult = await fallbackAnalyze(url);
@@ -342,12 +369,12 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             videoRes.pipe(res);
         }).on('error', (err) => {
             console.error('Stream proxy network error:', err);
-            if (!res.headersSent) res.status(500).json({ success: false, message: 'Stream connection error.' });
+            if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream connection error.' });
             if (downloadId) deleteProgress(downloadId);
         });
     } catch (err) {
         console.error('Proxy exception:', err);
-        if (!res.headersSent) res.status(500).json({ success: false, message: 'Stream exception.' });
+        if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream exception.' });
         if (downloadId) deleteProgress(downloadId);
     }
 }
@@ -602,10 +629,22 @@ app.get('/download', async (req, res) => {
 
         subprocess.on('error', (err) => {
             console.error('yt-dlp spawn error:', err);
-            if (!res.headersSent) res.status(500).send('Video stream error');
-            if (downloadId) deleteProgress(downloadId);
+            if (downloadId) setProgress(downloadId, { percent: 0, status: 'Failed', message: 'Video stream error.' });
+            if (!res.headersSent) res.status(400).json({ success: false, message: 'Video stream error.' });
+            if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000);
         });
     });
+});
+
+// Global catch-all error handling middleware to prevent unhandled 500 server crashes
+app.use((err, req, res, next) => {
+    console.error('Unhandled server error:', err);
+    if (!res.headersSent) {
+        res.status(400).json({
+            success: false,
+            message: err ? (err.message || 'An unexpected request error occurred.') : 'An error occurred'
+        });
+    }
 });
 
 if (require.main === module) {
