@@ -339,4 +339,27 @@ document.addEventListener('DOMContentLoaded', () => {
             copyTextToClipboard('03274816872', copyRaastBtn);
         });
     }
+
+    // Info Modal Logic
+    const infoBtn = document.getElementById('info-btn');
+    const infoModal = document.getElementById('info-modal');
+    const closeInfoModalBtn = document.getElementById('close-info-modal-btn');
+
+    if (infoBtn && infoModal) {
+        infoBtn.addEventListener('click', () => {
+            infoModal.style.display = 'flex';
+        });
+
+        if (closeInfoModalBtn) {
+            closeInfoModalBtn.addEventListener('click', () => {
+                infoModal.style.display = 'none';
+            });
+        }
+
+        infoModal.addEventListener('click', (e) => {
+            if (e.target === infoModal) {
+                infoModal.style.display = 'none';
+            }
+        });
+    }
 });

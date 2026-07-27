@@ -148,6 +148,34 @@ body {
     border-radius: 50%;
 }
 
+}
+
+/* Info Modal Trigger Button on Top Left */
+#info-btn {
+    position: absolute;
+    left: 1.25rem;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-dark);
+    box-shadow: var(--shadow-soft);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#info-btn:hover {
+    transform: scale(1.1);
+    color: var(--primary);
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(6, 78, 59, 0.15);
+}
+
 /* Favorite Modal Trigger Button */
 #favorite-btn {
     position: absolute;
@@ -503,13 +531,37 @@ footer::before {
     font-size: 0.75rem;
 }
 
-/* Support Modal */
-#support-modal {
+/* Modal Styles */
+.modal-overlay, #support-modal {
     display: none;
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
     background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content, #support-modal > div {
+    background: #ffffff;
+    padding: 28px 24px;
+    border-radius: 28px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    border: 1.5px solid rgba(6, 78, 59, 0.12);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+    position: relative;
+    animation: modalSlide 0.3s ease-out;
+}
+
+@keyframes modalSlide {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     z-index: 1000;
