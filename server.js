@@ -187,7 +187,8 @@ app.post('/analyze', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     try {
         const body = (req.body && typeof req.body === 'object') ? req.body : {};
-        const url = typeof body.url === 'string' ? body.url.trim() : '';
+        const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
+        const url = normalizeYouTubeUrl(rawUrl);
         
         if (!url) {
             return res.status(400).json({ success: false, message: 'Invalid URL provided' });
@@ -262,6 +263,15 @@ function extractYouTubeId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function normalizeYouTubeUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    const videoId = extractYouTubeId(url);
+    if (videoId) {
+        return `https://www.youtube.com/watch?v=${videoId}`;
+    }
+    return url;
 }
 
 function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
@@ -405,11 +415,13 @@ async function getInvidiousDirectStreamUrl(videoId) {
 }
 
 app.get('/download', async (req, res) => {
-    const { url, id } = req.query;
+    let { url, id } = req.query;
     
     if (!url || typeof url !== 'string') {
         return res.status(400).send('Invalid URL provided');
     }
+
+    url = normalizeYouTubeUrl(url);
 
     const downloadId = (id && typeof id === 'string') ? id : Math.random().toString(36).substring(2, 10);
     
