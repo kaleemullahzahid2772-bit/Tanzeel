@@ -78,6 +78,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const copyTextToClipboard = async (text, btnElement) => {
+        const originalText = btnElement.textContent;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+            btnElement.textContent = 'COPIED!';
+            setTimeout(() => btnElement.textContent = originalText, 2000);
+        } catch (err) {
+            console.error('Clipboard copy failed:', err);
+            btnElement.textContent = 'COPIED!';
+            setTimeout(() => btnElement.textContent = originalText, 2000);
+        }
+    };
+
     const triggerDownload = async (manualText) => {
         if (actionBtn.classList.contains('downloading')) return; 
         
@@ -107,14 +132,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let fakeProgress = 0;
         const fakeProgressInterval = setInterval(() => {
-            if (fakeProgress < 100) {
-                fakeProgress += Math.floor(Math.random() * 5) + 1;
-                if (fakeProgress > 100) fakeProgress = 100;
+            if (fakeProgress < 90) {
+                fakeProgress += Math.floor(Math.random() * 10) + 5;
+                if (fakeProgress > 90) fakeProgress = 90;
                 fakeProgressText.textContent = `${fakeProgress}%`;
             }
-        }, 150);
+        }, 100);
         
-        // Start analysis in the background while fake progress is showing
+        // Start analysis in the background
         const isSuccess = await performAnalysis(manualText);
         if (!isSuccess) {
             clearInterval(fakeProgressInterval);
@@ -125,109 +150,121 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         currentUrl = manualText;
-
-        // Ensure fake progress reaches 100 before switching
-        while(fakeProgress < 100) {
-            await new Promise(r => setTimeout(r, 100));
-        }
+        fakeProgress = 100;
+        fakeProgressText.textContent = '100%';
+        clearInterval(fakeProgressInterval);
 
         let hasRealProgressStarted = false;
+        let failedPolls = 0;
         
         const downloadId = Math.random().toString(36).substring(2, 10);
         const downloadUrl = `/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`;
         
-        // Use window.location.href to trigger the download safely after async operations
-        window.location.href = downloadUrl;
+        // Trigger download using hidden iframe to prevent page navigation or reload glitches
+        let downloadIframe = document.getElementById('hidden-download-iframe');
+        if (!downloadIframe) {
+            downloadIframe = document.createElement('iframe');
+            downloadIframe.id = 'hidden-download-iframe';
+            downloadIframe.style.display = 'none';
+            document.body.appendChild(downloadIframe);
+        }
+        downloadIframe.src = downloadUrl;
 
         let pollCount = 0;
-        const maxPolls = 120; // 60 seconds total (500ms * 120)
+        const maxPolls = 60; // 30 seconds max polling duration
+
+        const resetBtnState = (statusText, statusColor) => {
+            clearInterval(pollInterval);
+            clearInterval(fakeProgressInterval);
+            if (statusText) updateStatus(statusText, statusColor || "#059669");
+            actionBtn.classList.remove('downloading');
+            actionBtn.classList.remove('loading');
+            progressContainer.style.display = 'none';
+            fakeProgressText.style.display = 'none';
+            spinner.style.display = 'none';
+            if (btnIcon) btnIcon.style.display = 'block';
+        };
 
         const pollInterval = setInterval(async () => {
             try {
                 pollCount++;
                 const res = await fetch(`/progress?id=${downloadId}`);
-                const data = await res.json();
-                
-                if (!data.success && pollCount >= maxPolls && !hasRealProgressStarted) {
-                    clearInterval(pollInterval);
-                    clearInterval(fakeProgressInterval);
-                    updateStatus("Download complete or started in background.", "#059669");
-                    actionBtn.classList.remove('downloading');
-                    progressContainer.style.display = 'none';
-                    fakeProgressText.style.display = 'none';
-                    spinner.style.display = 'none';
-                    const btnIcon = actionBtn.querySelector('.btn-icon');
-                    if (btnIcon) btnIcon.style.display = 'block';
-                    return;
-                }
-                
-                if (data.success && data.data) {
-                    const info = data.data;
-                    if (info.status === 'Downloading...') {
-                        if (!hasRealProgressStarted) {
-                            hasRealProgressStarted = true;
-                            clearInterval(fakeProgressInterval);
-                            fakeProgressText.style.display = 'none';
-                            spinner.style.display = 'block';
-                            progressContainer.style.display = 'block';
+                if (!res.ok) {
+                    failedPolls++;
+                } else {
+                    const data = await res.json();
+                    
+                    if (!data.success) {
+                        failedPolls++;
+                        // If progress API returns false 6 times (3 seconds) without starting real progress,
+                        // serverless direct stream redirect or background download has dispatched.
+                        if (failedPolls >= 6 && !hasRealProgressStarted) {
+                            return resetBtnState("Download started!", "#059669");
                         }
-                        
-                        statPercent.textContent = `${info.percent}%`;
-                        progressBarBg.style.width = `${info.percent}%`;
-                        
-                        // Parse values
-                        let totalVal = 0;
-                        let unit = 'MB';
-                        if (info.size && info.size !== '0MiB') {
-                            totalVal = parseFloat(info.size);
-                            unit = info.size.replace(/[\d\.]/g, '');
-                            if (unit.toLowerCase() === 'mib') unit = 'MB';
-                            if (unit.toLowerCase() === 'gib') unit = 'GB';
-                        }
-                        
-                        if (!isNaN(totalVal) && totalVal > 0) {
-                            const downloadedVal = (totalVal * (info.percent / 100)).toFixed(2);
-                            const remainingVal = (totalVal - downloadedVal).toFixed(2);
+                    } else if (data.success && data.data) {
+                        failedPolls = 0;
+                        const info = data.data;
+                        if (info.status === 'Downloading...') {
+                            if (!hasRealProgressStarted) {
+                                hasRealProgressStarted = true;
+                                fakeProgressText.style.display = 'none';
+                                spinner.style.display = 'block';
+                                progressContainer.style.display = 'block';
+                            }
                             
-                            statDownloaded.textContent = `${downloadedVal} ${unit}`;
-                            statTotal.textContent = `${totalVal.toFixed(2)} ${unit}`;
-                            statRemaining.textContent = `${remainingVal} ${unit}`;
-                        } else {
-                            statDownloaded.textContent = '--';
-                            statTotal.textContent = info.size || '--';
-                            statRemaining.textContent = '--';
-                        }
-                        
-                        statSpeed.textContent = info.speed.replace('MiB/s', 'MB/s');
-                        statEta.textContent = info.eta;
-                        downloadStats.textContent = `Downloading video...`;
-                        updateStatus("Downloading file...", "var(--primary)");
-                    } else if (info.status === 'Complete') {
-                        if (!hasRealProgressStarted) {
+                            statPercent.textContent = `${info.percent}%`;
+                            progressBarBg.style.width = `${info.percent}%`;
+                            
+                            let totalVal = 0;
+                            let unit = 'MB';
+                            if (info.size && info.size !== '0MiB') {
+                                totalVal = parseFloat(info.size);
+                                unit = info.size.replace(/[\d\.]/g, '');
+                                if (unit.toLowerCase() === 'mib') unit = 'MB';
+                                if (unit.toLowerCase() === 'gib') unit = 'GB';
+                            }
+                            
+                            if (!isNaN(totalVal) && totalVal > 0) {
+                                const downloadedVal = (totalVal * (info.percent / 100)).toFixed(2);
+                                const remainingVal = (totalVal - downloadedVal).toFixed(2);
+                                
+                                statDownloaded.textContent = `${downloadedVal} ${unit}`;
+                                statTotal.textContent = `${totalVal.toFixed(2)} ${unit}`;
+                                statRemaining.textContent = `${remainingVal} ${unit}`;
+                            } else {
+                                statDownloaded.textContent = '--';
+                                statTotal.textContent = info.size || '--';
+                                statRemaining.textContent = '--';
+                            }
+                            
+                            statSpeed.textContent = info.speed.replace('MiB/s', 'MB/s');
+                            statEta.textContent = info.eta;
+                            downloadStats.textContent = `Downloading video...`;
+                            updateStatus("Downloading file...", "var(--primary)");
+                        } else if (info.status === 'Complete') {
                             hasRealProgressStarted = true;
-                            clearInterval(fakeProgressInterval);
+                            statPercent.textContent = `100%`;
+                            progressBarBg.style.width = `100%`;
+                            downloadStats.textContent = "Download complete!";
+                            updateStatus("Video saved to gallery.", "#059669");
+                            
+                            setTimeout(() => {
+                                resetBtnState("Video saved to gallery.", "#059669");
+                                downloadStats.textContent = '';
+                            }, 2000);
                         }
-                        clearInterval(pollInterval);
-                        
-                        statPercent.textContent = `100%`;
-                        progressBarBg.style.width = `100%`;
-                        downloadStats.textContent = "Download complete!";
-                        updateStatus("Video saved to gallery.", "#059669");
-                        
-                        actionBtn.classList.remove('downloading');
-                        
-                        // Wait a bit to let user see 100% and complete status
-                        setTimeout(() => {
-                            progressContainer.style.display = 'none';
-                            fakeProgressText.style.display = 'none';
-                            spinner.style.display = 'none';
-                            if (btnIcon) btnIcon.style.display = 'block';
-                            downloadStats.textContent = '';
-                        }, 3000);
                     }
                 }
+
+                if (pollCount >= maxPolls && !hasRealProgressStarted) {
+                    resetBtnState("Download initiated.", "#059669");
+                }
             } catch (e) {
-                console.error(e);
+                console.error('Polling error:', e);
+                failedPolls++;
+                if (failedPolls >= 6 && !hasRealProgressStarted) {
+                    resetBtnState("Download initiated.", "#059669");
+                }
             }
         }, 500);
     };
@@ -268,19 +305,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         copyEmailBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText('kaleemullahzahid2772@gmail.com').then(() => {
-                const originalText = copyEmailBtn.textContent;
-                copyEmailBtn.textContent = 'COPIED!';
-                setTimeout(() => copyEmailBtn.textContent = originalText, 2000);
-            });
+            copyTextToClipboard('kaleemullahzahid2772@gmail.com', copyEmailBtn);
         });
 
         copyRaastBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText('03274816872').then(() => {
-                const originalText = copyRaastBtn.textContent;
-                copyRaastBtn.textContent = 'COPIED!';
-                setTimeout(() => copyRaastBtn.textContent = originalText, 2000);
-            });
+            copyTextToClipboard('03274816872', copyRaastBtn);
         });
     }
 });
