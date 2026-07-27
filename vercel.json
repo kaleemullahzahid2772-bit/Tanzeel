@@ -5,14 +5,16 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "maxDuration": 60
+        "maxDuration": 60,
+        "includeFiles": ["public/**"]
       }
     }
   ],
   "functions": {
     "server.js": {
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "public/**"
     }
   },
   "routes": [

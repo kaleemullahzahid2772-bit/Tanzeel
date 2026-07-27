@@ -136,7 +136,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Explicit root route handler for Vercel and serverless deployments
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath, (err) => {
+            if (err && !res.headersSent) {
+                res.redirect(302, '/index.html');
+            }
+        });
+    }
+    res.redirect(302, '/index.html');
 });
 
 const https = require('https');
