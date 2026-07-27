@@ -84,10 +84,14 @@ function isBinaryAvailable() {
             if (!isWin) {
                 try { fs.chmodSync(ytDlpPath, '755'); } catch (e) {}
             }
+            const { execFileSync } = require('child_process');
+            execFileSync(ytDlpPath, ['--version'], { stdio: 'ignore', timeout: 3000 });
             binaryAvailabilityCache = true;
             return true;
         }
         if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+            const { execFileSync } = require('child_process');
+            execFileSync(process.env.YTDLP_PATH, ['--version'], { stdio: 'ignore', timeout: 3000 });
             binaryAvailabilityCache = true;
             return true;
         }
@@ -105,6 +109,64 @@ function isBinaryAvailable() {
     binaryAvailabilityCache = false;
     return false;
 }
+
+async function getYtdlCoreStreamUrl(videoUrl) {
+    if (!ytdlCore) return null;
+    try {
+        let options = {
+            requestOptions: {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            }
+        };
+
+        if (fs.existsSync(cookiesPath)) {
+            try {
+                const cookieContent = fs.readFileSync(cookiesPath, 'utf-8');
+                const lines = cookieContent.split('\n');
+                const parsedCookies = lines.map(line => {
+                    if (!line || line.startsWith('#')) return null;
+                    const parts = line.split('\t');
+                    if (parts.length < 7) return null;
+                    const domain = parts[0];
+                    if (!domain.includes('youtube.com')) return null;
+                    return {
+                        domain,
+                        expirationDate: parseInt(parts[4]),
+                        path: parts[2],
+                        secure: parts[3] === 'TRUE',
+                        value: parts[6].trim(),
+                        name: parts[5].trim()
+                    };
+                }).filter(Boolean);
+
+                if (parsedCookies.length > 0 && typeof ytdlCore.createAgent === 'function') {
+                    options.agent = ytdlCore.createAgent(parsedCookies);
+                }
+            } catch (cookieErr) {
+                console.warn('ytdl-core cookie parsing warning:', cookieErr.message);
+            }
+        }
+
+        const info = await ytdlCore.getInfo(videoUrl, options);
+        if (info && info.formats && info.formats.length > 0) {
+            const format = (typeof ytdlCore.chooseFormat === 'function' ? ytdlCore.chooseFormat(info.formats, { filter: 'audioandvideo' }) : null) ||
+                           info.formats.find(f => f.hasVideo && f.hasAudio && f.url) ||
+                           info.formats.find(f => f.hasVideo && f.url);
+            if (format && format.url) {
+                return {
+                    url: format.url,
+                    title: (info.videoDetails && info.videoDetails.title) ? info.videoDetails.title : 'Tanzeel_Video'
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('ytdl-core extraction error:', e.message);
+    }
+    return null;
+}
+
 
 let isDownloadingBinary = false;
 function downloadBinaryIfNeeded() {
@@ -522,18 +584,24 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
 
 async function getCobaltDirectStream(videoUrl) {
     const instances = [
-        { hostname: 'api.cobalt.tools', path: '/' },
-        { hostname: 'cobalt.q1.l5.ca', path: '/' },
-        { hostname: 'co.wuk.sh', path: '/' }
+        'https://api.cobalt.tools/',
+        'https://cobalt-api.kwiatekmotion.pl/',
+        'https://co.wuk.sh/'
     ];
 
-    for (const inst of instances) {
+    for (const endpoint of instances) {
         try {
-            const postData = JSON.stringify({ url: videoUrl });
+            const parsed = new URL(endpoint);
+            const postData = JSON.stringify({
+                url: videoUrl,
+                videoQuality: '720',
+                youtubeVideoCodec: 'h264'
+            });
+
             const options = {
-                hostname: inst.hostname,
-                port: 443,
-                path: inst.path,
+                hostname: parsed.hostname,
+                port: parsed.port || 443,
+                path: parsed.pathname,
                 method: 'POST',
                 agent: sslAgent,
                 headers: {
@@ -556,6 +624,7 @@ async function getCobaltDirectStream(videoUrl) {
                                 if (json.picker && Array.isArray(json.picker) && json.picker[0] && json.picker[0].url) {
                                     return resolve(json.picker[0].url);
                                 }
+                                if (json.tunnel) return resolve(json.tunnel);
                             }
                             resolve(null);
                         } catch (e) {
@@ -564,7 +633,7 @@ async function getCobaltDirectStream(videoUrl) {
                     });
                 });
                 req.on('error', () => resolve(null));
-                req.setTimeout(2000, () => { req.destroy(); resolve(null); });
+                req.setTimeout(3000, () => { req.destroy(); resolve(null); });
                 req.write(postData);
                 req.end();
             });
@@ -580,16 +649,18 @@ async function getPipedDirectStreamUrl(videoId) {
         `https://api.piped.video/streams/${videoId}`,
         `https://pipedapi.kavin.rocks/streams/${videoId}`,
         `https://pipedapi.mha.fi/streams/${videoId}`,
-        `https://pipedapi.privacydev.net/streams/${videoId}`
+        `https://pipedapi.privacydev.net/streams/${videoId}`,
+        `https://pipedapi.drgns.space/streams/${videoId}`
     ];
     for (const instUrl of pipedInstances) {
-        const data = await httpsGetJson(instUrl, 2000);
+        const data = await httpsGetJson(instUrl, 2500);
         if (data && data.videoStreams && data.videoStreams.length > 0) {
             const combinedMp4 = data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4') && s.hasAudio) ||
                                 data.videoStreams.find(s => s.quality === '720p' && s.hasAudio) ||
-                                data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4'));
+                                data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4')) ||
+                                data.videoStreams[0];
             if (combinedMp4 && combinedMp4.url) {
-                return { url: combinedMp4.url, title: data.title };
+                return { url: combinedMp4.url, title: data.title || 'Tanzeel_Video' };
             }
         }
     }
@@ -602,17 +673,19 @@ async function getInvidiousDirectStreamUrl(videoId) {
         `https://yewtu.be/api/v1/videos/${videoId}`,
         `https://vid.puffyan.us/api/v1/videos/${videoId}`,
         `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
-        `https://invidious.flokinet.to/api/v1/videos/${videoId}`
+        `https://invidious.flokinet.to/api/v1/videos/${videoId}`,
+        `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`
     ];
     for (const instUrl of instances) {
-        const data = await httpsGetJson(instUrl, 2000);
+        const data = await httpsGetJson(instUrl, 2500);
         if (data && data.formatStreams && data.formatStreams.length > 0) {
             const combinedMp4 = data.formatStreams.find(s => String(s.itag) === '22') ||
                                 data.formatStreams.find(s => String(s.itag) === '18') ||
                                 data.formatStreams.find(s => s.container === 'mp4' && s.encoding === 'h264') ||
-                                data.formatStreams.find(s => s.container === 'mp4');
+                                data.formatStreams.find(s => s.container === 'mp4') ||
+                                data.formatStreams[0];
             if (combinedMp4 && combinedMp4.url) {
-                return { url: combinedMp4.url, title: data.title };
+                return { url: combinedMp4.url, title: data.title || 'Tanzeel_Video' };
             }
         }
     }
@@ -622,15 +695,17 @@ async function getInvidiousDirectStreamUrl(videoId) {
 app.get('/download', async (req, res) => {
     let { url, id } = req.query;
     
-    if (!url || typeof url !== 'string') {
-        return res.status(400).send('Invalid URL provided');
+    if (!url || typeof url !== 'string' || !url.trim()) {
+        return res.status(400).json({ success: false, message: 'Invalid URL provided' });
     }
 
-    url = normalizeYouTubeUrl(url);
+    const rawUrl = url.trim();
+    url = normalizeYouTubeUrl(rawUrl);
+
+    console.log(`[DOWNLOAD REQ] ID: ${id || 'none'}, Raw: "${rawUrl}", Normalized: "${url}"`);
 
     const downloadId = (id && typeof id === 'string') ? id : Math.random().toString(36).substring(2, 10);
     
-    // Register progress immediately so frontend polling never times out!
     setProgress(downloadId, { 
         percent: 15, 
         size: 'Fetching...', 
@@ -639,191 +714,119 @@ app.get('/download', async (req, res) => {
         status: 'Downloading...' 
     });
 
-    let hasBinary = isBinaryAvailable();
-    if (!hasBinary) {
-        await downloadBinaryIfNeeded();
-        hasBinary = isBinaryAvailable();
-    }
+    const videoId = extractYouTubeId(url);
 
-    // Fallback if binary is not present on environment (e.g. cloud serverless)
-    if (!hasBinary) {
-        let streamUrl = null;
+    // Layer 1: Executable Binary Extractor (if binary can actually run on OS)
+    const hasBinary = isBinaryAvailable();
+    console.log(`[DOWNLOAD REQ] Binary executable available: ${hasBinary}`);
 
-        // 1. Try Cobalt stream engine
+    if (hasBinary) {
+        const extractArgs = [
+            '--no-check-certificates',
+            '--no-playlist',
+            '--js-runtimes', 'node',
+            '-g',
+            '--get-title',
+            '-f', '18/22/best[ext=mp4]/b/best'
+        ];
+        if (ffmpegPath) {
+            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+            extractArgs.push('--ffmpeg-location', ffmpegDir);
+        }
+        if (fs.existsSync(cookiesPath)) {
+            extractArgs.push('--cookies', cookiesPath);
+        }
+        extractArgs.push(url);
+
         try {
-            streamUrl = await getCobaltDirectStream(url);
-        } catch (e) {}
-        
-        // 2. Try Piped API stream engine if Cobalt stream is null
-        const videoId = extractYouTubeId(url);
-        if (!streamUrl && videoId) {
-            try {
-                const pipedStream = await getPipedDirectStreamUrl(videoId);
-                if (pipedStream && pipedStream.url) {
-                    streamUrl = pipedStream.url;
-                }
-            } catch (e) {}
-        }
-
-        // 3. Try Invidious API stream engine
-        if (!streamUrl && videoId) {
-            try {
-                const invidiousStream = await getInvidiousDirectStreamUrl(videoId);
-                if (invidiousStream && invidiousStream.url) {
-                    streamUrl = invidiousStream.url;
-                }
-            } catch (e) {}
-        }
-
-        if (streamUrl) {
-            return proxyVideoStream(streamUrl, 'Tanzeel_Video', res, downloadId);
-        }
-
-        setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to extract video stream from source.' });
-        setTimeout(() => deleteProgress(downloadId), 5000).unref();
-        if (!res.headersSent) {
-            res.status(400).setHeader('Content-Type', 'application/json');
-            return res.json({ success: false, message: 'Unable to extract video stream from source.' });
-        }
-    }
-
-    // Instant Direct Stream Extraction via yt-dlp -g --get-title
-    const extractArgs = [
-        '--no-check-certificates',
-        '--no-playlist',
-        '--js-runtimes', 'node',
-        '-g',
-        '--get-title',
-        '-f', '18/22/best[ext=mp4]/b/best'
-    ];
-    if (ffmpegPath) {
-        const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
-        extractArgs.push('--ffmpeg-location', ffmpegDir);
-    }
-    if (fs.existsSync(cookiesPath)) {
-        extractArgs.push('--cookies', cookiesPath);
-    }
-    extractArgs.push(url);
-
-    execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
-        let rawTitle = 'Tanzeel_Video';
-        let directUrl = null;
-
-        if (stdout) {
-            const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
-            const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
-            if (titleLine) rawTitle = titleLine;
-
-            const httpLines = lines.filter(l => l.startsWith('http'));
-            if (httpLines.length > 0) {
-                // Prefer non-m3u8 progressive links if available
-                const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
-                if (progressive) directUrl = progressive;
-            }
-        }
-        const safeTitle = sanitizeFilename(rawTitle);
-
-        const runSpawnFallback = () => {
-            const dlArgs = [
-                '--no-check-certificates',
-                '--no-playlist', 
-                '--js-runtimes', 'node',
-                '-f', '18/22/best[ext=mp4]/b/best', 
-                '-o', '-'
-            ];
-            if (ffmpegPath) {
-                const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
-                dlArgs.push('--ffmpeg-location', ffmpegDir);
-            }
-            if (fs.existsSync(cookiesPath)) {
-                dlArgs.push('--cookies', cookiesPath);
-            }
-            dlArgs.push(url);
-
-            const subprocess = spawn(ytDlpPath, dlArgs);
-
-            let inactivityTimer = setTimeout(() => {
-                try { subprocess.kill('SIGTERM'); } catch (e) {}
-            }, 60000);
-
-            const resetInactivity = () => {
-                if (inactivityTimer) clearTimeout(inactivityTimer);
-                inactivityTimer = setTimeout(() => {
-                    try { subprocess.kill('SIGTERM'); } catch (e) {}
-                }, 60000);
-            };
-
-            req.on('close', () => {
-                if (inactivityTimer) clearTimeout(inactivityTimer);
-                try { subprocess.kill('SIGTERM'); } catch (e) {}
-            });
-            
-            let hasStartedStreaming = false;
-            subprocess.stdout.on('data', (chunk) => {
-                resetInactivity();
-                if (!hasStartedStreaming) {
-                    hasStartedStreaming = true;
-                    if (!res.headersSent) {
-                        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-                        res.header('Content-Type', 'video/mp4');
-                        setContentDispositionHeader(res, safeTitle, 'mp4');
+            const binaryResult = await new Promise((resolve) => {
+                execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout) => {
+                    if (error || !stdout) return resolve(null);
+                    const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
+                    const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
+                    const httpLines = lines.filter(l => l.startsWith('http'));
+                    const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
+                    if (progressive) {
+                        return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
                     }
-                }
-                res.write(chunk);
+                    resolve(null);
+                });
             });
 
-            subprocess.stdout.on('end', () => {
-                if (inactivityTimer) clearTimeout(inactivityTimer);
-                if (!hasStartedStreaming) {
-                    if (!res.headersSent) {
-                        res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
-                    }
-                    if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
-                    return;
-                }
-                res.end();
-                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
-                setTimeout(() => deleteProgress(downloadId), 5000).unref();
-            });
-
-            subprocess.on('error', (err) => {
-                if (inactivityTimer) clearTimeout(inactivityTimer);
-                console.error('yt-dlp spawn error:', err);
-                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Video download error.' });
-                if (!res.headersSent) {
-                    res.status(400).json({ success: false, message: 'Video download error.' });
-                }
-                if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000).unref();
-            });
-        };
-
-        if (directUrl && directUrl.startsWith('http') && !directUrl.includes('.m3u8')) {
-            return proxyVideoStream(directUrl, safeTitle, res, downloadId, runSpawnFallback);
+            if (binaryResult && binaryResult.url) {
+                console.log(`[DOWNLOAD] Success via binary extractor: "${binaryResult.title}"`);
+                return proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId);
+            }
+        } catch (binErr) {
+            console.warn('[DOWNLOAD] Binary extraction exception:', binErr.message);
         }
+    }
 
-        // Fallback stream engines
-        let streamUrl = null;
-        try { streamUrl = await getCobaltDirectStream(url); } catch (e) {}
-        const videoId = extractYouTubeId(url);
-        if (!streamUrl && videoId) {
-            try {
-                const piped = await getPipedDirectStreamUrl(videoId);
-                if (piped && piped.url) streamUrl = piped.url;
-            } catch (e) {}
+    // Layer 2: @distube/ytdl-core JS Extractor
+    console.log('[DOWNLOAD] Trying @distube/ytdl-core JS extractor...');
+    try {
+        const ytdlResult = await getYtdlCoreStreamUrl(url);
+        if (ytdlResult && ytdlResult.url) {
+            console.log(`[DOWNLOAD] Success via @distube/ytdl-core: "${ytdlResult.title}"`);
+            return proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId);
         }
-        if (!streamUrl && videoId) {
-            try {
-                const inv = await getInvidiousDirectStreamUrl(videoId);
-                if (inv && inv.url) streamUrl = inv.url;
-            } catch (e) {}
-        }
+    } catch (ytdlErr) {
+        console.warn('[DOWNLOAD] @distube/ytdl-core extraction error:', ytdlErr.message);
+    }
 
-        if (streamUrl) {
-            return proxyVideoStream(streamUrl, safeTitle, res, downloadId, runSpawnFallback);
+    // Layer 3: Cobalt API Stream
+    console.log('[DOWNLOAD] Trying Cobalt API stream engine...');
+    try {
+        const cobaltUrl = await getCobaltDirectStream(url);
+        if (cobaltUrl) {
+            console.log('[DOWNLOAD] Success via Cobalt API');
+            return proxyVideoStream(cobaltUrl, 'Tanzeel_Video', res, downloadId);
         }
+    } catch (cobaltErr) {
+        console.warn('[DOWNLOAD] Cobalt stream error:', cobaltErr.message);
+    }
 
-        runSpawnFallback();
-    });
+    // Layer 4: Piped API Stream
+    if (videoId) {
+        console.log('[DOWNLOAD] Trying Piped API stream engine...');
+        try {
+            const pipedStream = await getPipedDirectStreamUrl(videoId);
+            if (pipedStream && pipedStream.url) {
+                console.log(`[DOWNLOAD] Success via Piped API: "${pipedStream.title}"`);
+                return proxyVideoStream(pipedStream.url, sanitizeFilename(pipedStream.title), res, downloadId);
+            }
+        } catch (pipedErr) {
+            console.warn('[DOWNLOAD] Piped stream error:', pipedErr.message);
+        }
+    }
+
+    // Layer 5: Invidious API Stream
+    if (videoId) {
+        console.log('[DOWNLOAD] Trying Invidious API stream engine...');
+        try {
+            const invidiousStream = await getInvidiousDirectStreamUrl(videoId);
+            if (invidiousStream && invidiousStream.url) {
+                console.log(`[DOWNLOAD] Success via Invidious API: "${invidiousStream.title}"`);
+                return proxyVideoStream(invidiousStream.url, sanitizeFilename(invidiousStream.title), res, downloadId);
+            }
+        } catch (invErr) {
+            console.warn('[DOWNLOAD] Invidious stream error:', invErr.message);
+        }
+    }
+
+    // All extraction layers exhausted: return clean HTTP 400 JSON error
+    console.error('[DOWNLOAD FAILED] All extraction layers failed for URL:', url);
+    setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to extract video stream from source.' });
+    setTimeout(() => deleteProgress(downloadId), 5000).unref();
+
+    if (!res.headersSent) {
+        res.status(400).setHeader('Content-Type', 'application/json');
+        return res.json({
+            success: false,
+            error: 'EXTRACTION_FAILED',
+            message: 'Unable to extract video stream from source.'
+        });
+    }
 });
 
 // Global catch-all error handling middleware to prevent unhandled 500 server crashes
