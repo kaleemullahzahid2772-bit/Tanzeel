@@ -195,10 +195,9 @@ app.post('/analyze', async (req, res) => {
         }
 
         // On Vercel / serverless cloud environment where binary is missing, use instant API fallback
-        const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
         const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
 
-        if (isVercel || !hasBinary) {
+        if (!hasBinary) {
             const fallbackResult = await fallbackAnalyze(url);
             return res.status(200).json(fallbackResult);
         }
@@ -434,11 +433,10 @@ app.get('/download', async (req, res) => {
         status: 'Downloading...' 
     });
 
-    const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
     const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
 
-    // Vercel serverless / cloud fallback: Direct browser stream redirection to bypass datacenter IP blocks
-    if (isVercel || !hasBinary) {
+    // Fallback if binary is not present on environment
+    if (!hasBinary) {
         let streamUrl = null;
 
         // 1. Try Cobalt stream engine
