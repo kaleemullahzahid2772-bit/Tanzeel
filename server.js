@@ -1,3 +1,5 @@
+process.env.YTDL_NO_UPDATE = 'true';
+
 const express = require('express');
 const cors = require('cors');
 const { spawn, execFile } = require('child_process');
@@ -196,7 +198,7 @@ function downloadBinaryIfNeeded() {
         console.log('yt-dlp binary missing on server. Auto-downloading standalone binary to:', tmpPath);
         const downloadUrl = isWin 
             ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
-            : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+            : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
 
         function fetchFile(url, dest, attempts = 0) {
             if (attempts > 5) {
@@ -528,7 +530,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
                     return onFail();
                 }
                 if (!res.headersSent) {
-                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
+                    return res.redirect(streamUrl);
                 }
                 if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
                 return;
@@ -560,7 +562,9 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
             if (typeof onFail === 'function') {
                 return onFail();
             }
-            if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream connection error.' });
+            if (!res.headersSent) {
+                return res.redirect(streamUrl);
+            }
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream connection error.' });
         });
 
@@ -569,7 +573,9 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
             if (typeof onFail === 'function') {
                 return onFail();
             }
-            if (!res.headersSent) res.status(504).json({ success: false, message: 'Stream request timeout.' });
+            if (!res.headersSent) {
+                return res.redirect(streamUrl);
+            }
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream request timeout.' });
         });
     } catch (err) {
@@ -577,7 +583,9 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
         if (typeof onFail === 'function') {
             return onFail();
         }
-        if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream exception.' });
+        if (!res.headersSent) {
+            return res.redirect(streamUrl);
+        }
         if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream exception.' });
     }
 }
@@ -585,8 +593,8 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, onFail) {
 async function getCobaltDirectStream(videoUrl) {
     const instances = [
         'https://api.cobalt.tools/',
-        'https://cobalt-api.kwiatekmotion.pl/',
-        'https://co.wuk.sh/'
+        'https://cobalt.host/',
+        'https://cobalt.v0.pw/'
     ];
 
     for (const endpoint of instances) {
@@ -646,10 +654,7 @@ async function getCobaltDirectStream(videoUrl) {
 
 async function getPipedDirectStreamUrl(videoId) {
     const pipedInstances = [
-        `https://api.piped.video/streams/${videoId}`,
         `https://pipedapi.kavin.rocks/streams/${videoId}`,
-        `https://pipedapi.mha.fi/streams/${videoId}`,
-        `https://pipedapi.privacydev.net/streams/${videoId}`,
         `https://pipedapi.drgns.space/streams/${videoId}`
     ];
     for (const instUrl of pipedInstances) {
@@ -669,11 +674,7 @@ async function getPipedDirectStreamUrl(videoId) {
 
 async function getInvidiousDirectStreamUrl(videoId) {
     const instances = [
-        `https://inv.tux.pizza/api/v1/videos/${videoId}`,
-        `https://yewtu.be/api/v1/videos/${videoId}`,
-        `https://vid.puffyan.us/api/v1/videos/${videoId}`,
-        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
-        `https://invidious.flokinet.to/api/v1/videos/${videoId}`,
+        `https://invidious.drgns.space/api/v1/videos/${videoId}`,
         `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`
     ];
     for (const instUrl of instances) {
@@ -716,7 +717,7 @@ app.get('/download', async (req, res) => {
 
     const videoId = extractYouTubeId(url);
 
-    // Layer 1: Executable Binary Extractor (if binary can actually run on OS)
+    // Layer 1: Executable Binary Extractor (yt-dlp)
     const hasBinary = isBinaryAvailable();
     console.log(`[DOWNLOAD REQ] Binary executable available: ${hasBinary}`);
 
@@ -724,10 +725,11 @@ app.get('/download', async (req, res) => {
         const extractArgs = [
             '--no-check-certificates',
             '--no-playlist',
-            '--js-runtimes', 'node',
+            '--no-warnings',
+            '--ignore-errors',
             '-g',
             '--get-title',
-            '-f', '18/22/best[ext=mp4]/b/best'
+            '-f', '18/22/b/best[ext=mp4]/best'
         ];
         if (ffmpegPath) {
             const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
@@ -741,9 +743,9 @@ app.get('/download', async (req, res) => {
         try {
             const binaryResult = await new Promise((resolve) => {
                 execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout) => {
-                    if (error || !stdout) return resolve(null);
+                    if (!stdout || !stdout.trim()) return resolve(null);
                     const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
-                    const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
+                    const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
                     const httpLines = lines.filter(l => l.startsWith('http'));
                     const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
                     if (progressive) {
@@ -768,7 +770,9 @@ app.get('/download', async (req, res) => {
         const ytdlResult = await getYtdlCoreStreamUrl(url);
         if (ytdlResult && ytdlResult.url) {
             console.log(`[DOWNLOAD] Success via @distube/ytdl-core: "${ytdlResult.title}"`);
-            return proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId);
+            return proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId, async () => {
+                // If streaming proxy fails, try next layer
+            });
         }
     } catch (ytdlErr) {
         console.warn('[DOWNLOAD] @distube/ytdl-core extraction error:', ytdlErr.message);
