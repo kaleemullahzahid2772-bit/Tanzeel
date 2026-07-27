@@ -55,6 +55,12 @@ describe('Server Security & API Integration Tests', () => {
             expect(res.statusCode).toBe(400);
             expect(res.text).toContain('Invalid URL provided');
         });
+
+        it('should return 400 Bad Request when empty url parameter is provided', async () => {
+            const res = await request(app).get('/download?url=');
+            expect(res.statusCode).toBe(400);
+            expect(res.text).toContain('Invalid URL provided');
+        });
     });
 
     describe('/progress Endpoint', () => {
