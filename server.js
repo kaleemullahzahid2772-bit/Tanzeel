@@ -54,9 +54,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isWin = process.platform === 'win32';
 const defaultYtDlp = isWin ? path.join(__dirname, 'downloader.exe') : 'yt-dlp';
-let ytDlpPath = process.env.YTDLP_PATH || 'yt-dlp';
+let ytDlpPath = process.env.YTDLP_PATH || defaultYtDlp;
 try {
-    if (isWin && fs.existsSync(defaultYtDlp)) {
+    if (fs.existsSync(defaultYtDlp)) {
         ytDlpPath = defaultYtDlp;
     }
 } catch (e) {}
@@ -195,9 +195,9 @@ app.post('/analyze', async (req, res) => {
 
         // On Vercel / serverless cloud environment where binary is missing, use instant API fallback
         const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
-        const hasBinary = fs.existsSync(ytDlpPath);
+        const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
 
-        if (isVercel || (!hasBinary && !isWin)) {
+        if (isVercel || !hasBinary) {
             const fallbackResult = await fallbackAnalyze(url);
             return res.status(200).json(fallbackResult);
         }
@@ -423,10 +423,10 @@ app.get('/download', async (req, res) => {
     });
 
     const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
-    const hasBinary = fs.existsSync(ytDlpPath);
+    const hasBinary = fs.existsSync(ytDlpPath) || ytDlpPath === 'yt-dlp' || Boolean(process.env.YTDLP_PATH);
 
     // Vercel serverless / cloud fallback: Direct browser stream redirection to bypass datacenter IP blocks
-    if (isVercel || (!hasBinary && !isWin)) {
+    if (isVercel || !hasBinary) {
         let streamUrl = null;
 
         // 1. Try Cobalt stream engine
@@ -491,7 +491,8 @@ app.get('/download', async (req, res) => {
             '--js-runtimes', 'node'
         ];
         if (ffmpegPath) {
-            dlArgs.push('--ffmpeg-location', ffmpegPath);
+            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+            dlArgs.push('--ffmpeg-location', ffmpegDir);
         }
         if (fs.existsSync(cookiesPath)) {
             dlArgs.push('--cookies', cookiesPath);

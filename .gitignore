@@ -6,3 +6,11 @@ downloads/
 *-player-script.js
 null
 coverage/
+test_*
+*.mp4
+*.webm
+*.part
+*.mkv
+*.f137*
+*.f401*
+*.f251*
