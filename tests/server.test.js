@@ -75,9 +75,18 @@ describe('Server Security & API Integration Tests', () => {
         it('should handle /api/download route alias and encoded YouTube URLs correctly', async () => {
             const testUrl = encodeURIComponent('https://youtu.be/U9KUW63Jqhc?si=oROLxb8N-M8yFKjz');
             const res = await request(app).get(`/api/download?url=${testUrl}`);
-            // Should be handled by server (either return stream or 400 JSON on extraction fail, NEVER 404 or HTML)
             expect(res.statusCode).not.toBe(404);
             expect(res.headers['content-type']).not.toMatch(/text\/html/);
+        });
+
+        it('REGRESSION TEST: should successfully extract real video stream for youtu.be short URL with ?si= parameter', async () => {
+            const encodedUrl = 'https%3A%2F%2Fyoutu.be%2FU9KUW63Jqhc%3Fsi%3DoROLxb8N-M8yFKjz';
+            const res = await request(app).get(`/api/download?url=${encodedUrl}&id=4e13810p`);
+            
+            expect(res.statusCode).toBe(200);
+            expect(res.headers['content-type']).toMatch(/video|octet-stream|media/);
+            expect(res.headers['content-disposition']).toContain('attachment');
+            expect(res.headers['content-disposition']).toContain('Surat_Al-Qadr');
         });
     });
 
