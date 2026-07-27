@@ -4,6 +4,7 @@ const { spawn, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const http = require('http');
 
 let ffmpegPath = null;
 try {
@@ -423,10 +424,12 @@ const sslAgent = new https.Agent({ rejectUnauthorized: false });
 function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
     try {
         const parsedUrl = new URL(streamUrl);
+        const httpLib = parsedUrl.protocol === 'http:' ? http : https;
         const options = {
             hostname: parsedUrl.hostname,
+            port: parsedUrl.port || (parsedUrl.protocol === 'http:' ? 80 : 443),
             path: parsedUrl.pathname + parsedUrl.search,
-            agent: sslAgent,
+            agent: parsedUrl.protocol === 'http:' ? undefined : sslAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': '*/*',
@@ -435,17 +438,17 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             }
         };
 
-        https.get(options, (videoRes) => {
-            if (videoRes.statusCode === 301 || videoRes.statusCode === 302 || videoRes.statusCode === 307) {
+        const clientReq = httpLib.get(options, (videoRes) => {
+            if ([301, 302, 307, 308].includes(videoRes.statusCode)) {
                 const redirectUrl = videoRes.headers.location;
                 if (redirectUrl) return proxyVideoStream(redirectUrl, safeTitle, res, downloadId);
             }
             if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                 console.error('Stream proxy HTTP status error:', videoRes.statusCode);
                 if (!res.headersSent) {
-                    res.status(400).send('Unable to stream video from source.');
+                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
                 }
-                if (downloadId) deleteProgress(downloadId);
+                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
                 return;
             }
 
@@ -464,32 +467,40 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             
             if (downloadId) {
                 setProgress(downloadId, { percent: 100, size: 'Done', speed: 'Fast', eta: '0s', status: 'Complete' });
-                setTimeout(() => deleteProgress(downloadId), 5000);
+                deleteProgress(downloadId);
             }
             
             videoRes.pipe(res);
-        }).on('error', (err) => {
+        });
+
+        clientReq.on('error', (err) => {
             console.error('Stream proxy network error:', err);
-            if (!res.headersSent) res.status(400).send('Stream connection error.');
-            if (downloadId) deleteProgress(downloadId);
+            if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream connection error.' });
+            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream connection error.' });
+        });
+
+        clientReq.setTimeout(15000, () => {
+            clientReq.destroy();
+            if (!res.headersSent) res.status(504).json({ success: false, message: 'Stream request timeout.' });
+            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream request timeout.' });
         });
     } catch (err) {
         console.error('Proxy exception:', err);
-        if (!res.headersSent) res.status(400).send('Stream exception.');
-        if (downloadId) deleteProgress(downloadId);
+        if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream exception.' });
+        if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Stream exception.' });
     }
 }
 
 async function getCobaltDirectStream(videoUrl) {
     const instances = [
-        { hostname: 'co.wuk.sh', path: '/api/json' },
-        { hostname: 'api.cobalt.tools', path: '/api/json' },
-        { hostname: 'cobalt.q1.l5.ca', path: '/api/json' }
+        { hostname: 'api.cobalt.tools', path: '/' },
+        { hostname: 'cobalt.q1.l5.ca', path: '/' },
+        { hostname: 'co.wuk.sh', path: '/' }
     ];
 
     for (const inst of instances) {
         try {
-            const postData = JSON.stringify({ url: videoUrl, vCodec: 'h264', videoQuality: '720' });
+            const postData = JSON.stringify({ url: videoUrl });
             const options = {
                 hostname: inst.hostname,
                 port: 443,
@@ -511,17 +522,20 @@ async function getCobaltDirectStream(videoUrl) {
                     res.on('end', () => {
                         try {
                             const json = JSON.parse(body);
-                            if (json && (json.url || json.picker)) {
-                                resolve(json.url || (json.picker && json.picker[0] ? json.picker[0].url : null));
-                            } else {
-                                resolve(null);
+                            if (json) {
+                                if (json.url) return resolve(json.url);
+                                if (json.picker && Array.isArray(json.picker) && json.picker[0] && json.picker[0].url) {
+                                    return resolve(json.picker[0].url);
+                                }
                             }
+                            resolve(null);
                         } catch (e) {
                             resolve(null);
                         }
                     });
                 });
                 req.on('error', () => resolve(null));
+                req.setTimeout(2000, () => { req.destroy(); resolve(null); });
                 req.write(postData);
                 req.end();
             });
@@ -540,7 +554,7 @@ async function getPipedDirectStreamUrl(videoId) {
         `https://pipedapi.privacydev.net/streams/${videoId}`
     ];
     for (const instUrl of pipedInstances) {
-        const data = await httpsGetJson(instUrl);
+        const data = await httpsGetJson(instUrl, 2000);
         if (data && data.videoStreams && data.videoStreams.length > 0) {
             const combinedMp4 = data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4') && s.hasAudio) ||
                                 data.videoStreams.find(s => s.quality === '720p' && s.hasAudio) ||
@@ -562,9 +576,8 @@ async function getInvidiousDirectStreamUrl(videoId) {
         `https://invidious.flokinet.to/api/v1/videos/${videoId}`
     ];
     for (const instUrl of instances) {
-        const data = await httpsGetJson(instUrl);
+        const data = await httpsGetJson(instUrl, 2000);
         if (data && data.formatStreams && data.formatStreams.length > 0) {
-            // Prioritize itag 22 (720p combined MP4 H264/AAC) or itag 18 (360p combined MP4 H264/AAC)
             const combinedMp4 = data.formatStreams.find(s => String(s.itag) === '22') ||
                                 data.formatStreams.find(s => String(s.itag) === '18') ||
                                 data.formatStreams.find(s => s.container === 'mp4' && s.encoding === 'h264') ||
@@ -603,7 +616,7 @@ app.get('/download', async (req, res) => {
         hasBinary = isBinaryAvailable();
     }
 
-    // Fallback if binary is not present on environment
+    // Fallback if binary is not present on environment (e.g. cloud serverless)
     if (!hasBinary) {
         let streamUrl = null;
 
@@ -637,14 +650,11 @@ app.get('/download', async (req, res) => {
             return proxyVideoStream(streamUrl, 'Tanzeel_Video', res, downloadId);
         }
 
-        setProgress(downloadId, { percent: 100, status: 'Complete' });
-        setTimeout(() => deleteProgress(downloadId), 5000);
+        setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to extract video stream from source.' });
+        setTimeout(() => deleteProgress(downloadId), 5000).unref();
         if (!res.headersSent) {
-            const redirectUrl = (url.includes('youtube.com') || url.includes('youtu.be'))
-                ? `https://ssyoutube.com/watch?v=${extractYouTubeId(url) || ''}`
-                : `https://savefrom.net/#url=${encodeURIComponent(url)}`;
-            res.setHeader('Content-Type', 'text/html');
-            return res.send(`<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${redirectUrl}"></head><body><script>window.top.location.href="${redirectUrl}";</script>Redirecting...</body></html>`);
+            res.status(400).setHeader('Content-Type', 'application/json');
+            return res.json({ success: false, message: 'Unable to extract video stream from source.' });
         }
     }
 
@@ -665,7 +675,7 @@ app.get('/download', async (req, res) => {
     }
     extractArgs.push(url);
 
-    execFile(ytDlpPath, extractArgs, async (error, stdout) => {
+    execFile(ytDlpPath, extractArgs, { timeout: 8000, maxBuffer: 1024 * 1024 * 10 }, async (error, stdout) => {
         let rawTitle = 'Tanzeel_Video';
         let directUrl = null;
 
@@ -726,6 +736,15 @@ app.get('/download', async (req, res) => {
 
         const subprocess = spawn(ytDlpPath, dlArgs);
         
+        const killTimer = setTimeout(() => {
+            try { subprocess.kill('SIGTERM'); } catch (e) {}
+        }, 8000);
+
+        req.on('close', () => {
+            clearTimeout(killTimer);
+            try { subprocess.kill('SIGTERM'); } catch (e) {}
+        });
+        
         let hasStartedStreaming = false;
         subprocess.stdout.on('data', (chunk) => {
             if (!hasStartedStreaming) {
@@ -740,23 +759,27 @@ app.get('/download', async (req, res) => {
         });
 
         subprocess.stdout.on('end', () => {
-            if (!res.headersSent) {
-                res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-                res.header('Content-Type', 'video/mp4');
-                setContentDispositionHeader(res, safeTitle, 'mp4');
+            clearTimeout(killTimer);
+            if (!hasStartedStreaming) {
+                if (!res.headersSent) {
+                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
+                }
+                if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Unable to stream video from source.' });
+                return;
             }
             res.end();
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
-            setTimeout(() => deleteProgress(downloadId), 5000);
+            setTimeout(() => deleteProgress(downloadId), 5000).unref();
         });
 
         subprocess.on('error', (err) => {
+            clearTimeout(killTimer);
             console.error('yt-dlp spawn error:', err);
-            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
+            if (downloadId) setProgress(downloadId, { percent: 100, status: 'Failed', message: 'Video download error.' });
             if (!res.headersSent) {
-                res.status(400).send('Video download error.');
+                res.status(400).json({ success: false, message: 'Video download error.' });
             }
-            if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000);
+            if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000).unref();
         });
     });
 });
