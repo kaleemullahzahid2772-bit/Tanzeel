@@ -429,7 +429,9 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             agent: sslAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': '*/*'
+                'Accept': '*/*',
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com'
             }
         };
 
@@ -441,7 +443,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                 console.error('Stream proxy HTTP status error:', videoRes.statusCode);
                 if (!res.headersSent) {
-                    res.status(400).json({ success: false, message: 'Unable to stream video from source.' });
+                    res.status(400).send('Unable to stream video from source.');
                 }
                 if (downloadId) deleteProgress(downloadId);
                 return;
@@ -468,12 +470,12 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId) {
             videoRes.pipe(res);
         }).on('error', (err) => {
             console.error('Stream proxy network error:', err);
-            if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream connection error.' });
+            if (!res.headersSent) res.status(400).send('Stream connection error.');
             if (downloadId) deleteProgress(downloadId);
         });
     } catch (err) {
         console.error('Proxy exception:', err);
-        if (!res.headersSent) res.status(400).json({ success: false, message: 'Stream exception.' });
+        if (!res.headersSent) res.status(400).send('Stream exception.');
         if (downloadId) deleteProgress(downloadId);
     }
 }
@@ -641,18 +643,18 @@ app.get('/download', async (req, res) => {
             const redirectUrl = (url.includes('youtube.com') || url.includes('youtu.be'))
                 ? `https://ssyoutube.com/watch?v=${extractYouTubeId(url) || ''}`
                 : `https://savefrom.net/#url=${encodeURIComponent(url)}`;
-            return res.redirect(302, redirectUrl);
+            res.setHeader('Content-Type', 'text/html');
+            return res.send(`<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${redirectUrl}"></head><body><script>window.top.location.href="${redirectUrl}";</script>Redirecting...</body></html>`);
         }
     }
 
     // Instant Direct Stream Extraction via yt-dlp -g --get-title
     const extractArgs = [
-        '--no-playlist',
         '--no-check-certificates',
+        '--no-playlist',
         '-g',
         '--get-title',
-        '-f', 'b/best',
-        '--js-runtimes', 'node'
+        '-f', '18/22/best[ext=mp4]/b/best'
     ];
     if (ffmpegPath) {
         const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
@@ -672,14 +674,16 @@ app.get('/download', async (req, res) => {
             const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:'));
             if (titleLine) rawTitle = titleLine;
 
-            const httpLines = lines.filter(l => l.startsWith('http') && !l.includes('.m3u8'));
+            const httpLines = lines.filter(l => l.startsWith('http'));
             if (httpLines.length > 0) {
-                directUrl = httpLines[httpLines.length - 1];
+                // Prefer non-m3u8 progressive links if available
+                const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
+                if (progressive) directUrl = progressive;
             }
         }
         const safeTitle = sanitizeFilename(rawTitle);
 
-        if (directUrl && directUrl.startsWith('http')) {
+        if (directUrl && directUrl.startsWith('http') && !directUrl.includes('.m3u8')) {
             return proxyVideoStream(directUrl, safeTitle, res, downloadId);
         }
 
@@ -705,15 +709,10 @@ app.get('/download', async (req, res) => {
         }
 
         // Fallback: Stream video directly from yt-dlp stdout to client response
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.header('Content-Type', 'video/mp4');
-        setContentDispositionHeader(res, safeTitle, 'mp4');
-
         const dlArgs = [
-            '--no-playlist', 
             '--no-check-certificates',
-            '-f', '18/22/b/best', 
-            '--js-runtimes', 'node',
+            '--no-playlist', 
+            '-f', '18/22/best[ext=mp4]/b/best', 
             '-o', '-'
         ];
         if (ffmpegPath) {
@@ -726,9 +725,27 @@ app.get('/download', async (req, res) => {
         dlArgs.push(url);
 
         const subprocess = spawn(ytDlpPath, dlArgs);
-        subprocess.stdout.pipe(res);
+        
+        let hasStartedStreaming = false;
+        subprocess.stdout.on('data', (chunk) => {
+            if (!hasStartedStreaming) {
+                hasStartedStreaming = true;
+                if (!res.headersSent) {
+                    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    res.header('Content-Type', 'video/mp4');
+                    setContentDispositionHeader(res, safeTitle, 'mp4');
+                }
+            }
+            res.write(chunk);
+        });
 
-        subprocess.on('close', (code) => {
+        subprocess.stdout.on('end', () => {
+            if (!res.headersSent) {
+                res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                res.header('Content-Type', 'video/mp4');
+                setContentDispositionHeader(res, safeTitle, 'mp4');
+            }
+            res.end();
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
             setTimeout(() => deleteProgress(downloadId), 5000);
         });
@@ -737,10 +754,7 @@ app.get('/download', async (req, res) => {
             console.error('yt-dlp spawn error:', err);
             if (downloadId) setProgress(downloadId, { percent: 100, status: 'Complete' });
             if (!res.headersSent) {
-                const redirectUrl = (url.includes('youtube.com') || url.includes('youtu.be'))
-                    ? `https://ssyoutube.com/watch?v=${extractYouTubeId(url) || ''}`
-                    : `https://savefrom.net/#url=${encodeURIComponent(url)}`;
-                return res.redirect(302, redirectUrl);
+                res.status(400).send('Video download error.');
             }
             if (downloadId) setTimeout(() => deleteProgress(downloadId), 5000);
         });
