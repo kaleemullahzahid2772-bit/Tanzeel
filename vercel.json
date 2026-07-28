@@ -2,7 +2,12 @@
   "version": 2,
   "functions": {
     "server.js": {
-      "includeFiles": "{public/**,yt-dlp}"
+      "includeFiles": "public/**",
+      "maxDuration": 60
+    },
+    "api/**/*.js": {
+      "includeFiles": "public/**",
+      "maxDuration": 60
     }
   },
   "headers": [
