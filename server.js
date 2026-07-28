@@ -579,7 +579,7 @@ app.post(['/analyze', '/api/analyze'], rateLimiter, async (req, res) => {
         const args = [
             '--no-playlist',
             '--no-check-certificate',
-            '--extractor-args', 'youtube:player_client=ios,android,mweb',
+            '--extractor-args', 'youtube:player_client=android,ios',
             '--dump-json'
         ];
         const cookiesFile = getCookiesPath();
@@ -918,10 +918,10 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-warnings',
             '--ignore-errors',
             '--no-check-certificate',
-            '--extractor-args', 'youtube:player_client=ios,android,mweb',
+            '--extractor-args', 'youtube:player_client=android,ios',
             '-g',
             '--get-title',
-            '-f', '18/22/b/best[ext=mp4]/best/bestvideo+bestaudio'
+            '-f', '18/22/b/best[ext=mp4]/best'
         ];
         if (ffmpegPath) {
             const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
