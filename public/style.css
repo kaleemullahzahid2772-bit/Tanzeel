@@ -261,9 +261,150 @@ body {
     color: var(--text-muted);
     font-size: 0.95rem;
     font-weight: 500;
-    margin-bottom: 1.75rem;
+    margin-bottom: 0.75rem;
     letter-spacing: 0.2px;
 }
+
+/* Social Proof Badge */
+.social-proof {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(4, 120, 87, 0.08);
+    border: 1px solid rgba(4, 120, 87, 0.15);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    color: var(--primary-dark);
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+}
+
+.proof-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: inline-block;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Header Action Buttons */
+.header-action-btn {
+    background: rgba(6, 78, 59, 0.06);
+    border: none;
+    color: var(--text-main);
+    padding: 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-action-btn:hover {
+    background: rgba(6, 78, 59, 0.12);
+    transform: translateY(-1px);
+}
+
+/* Share Toast */
+.share-toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary-dark);
+    color: white;
+    padding: 10px 22px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 1000;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.share-toast.show {
+    opacity: 1;
+}
+
+/* Platform Logos */
+.platforms-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 8px 0 4px;
+}
+
+.platform-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(4, 120, 87, 0.06);
+    border: 1px solid rgba(4, 120, 87, 0.1);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.platform-pill:hover {
+    background: rgba(4, 120, 87, 0.12);
+    color: var(--primary-dark);
+    border-color: rgba(4, 120, 87, 0.2);
+}
+
+.platform-pill-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Supported Platforms (main UI) */
+.platforms-supported {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+}
+
+.ps-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-right: 2px;
+}
+
+.ps-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: white;
+}
+
+.ps-tag.yt { background: #ff0000; }
+.ps-tag.ig { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+.ps-tag.tw { background: #1da1f2; }
+.ps-tag.tk { background: #010101; }
+.ps-tag.fb { background: #1877f2; }
 
 /* Premium URL Input Group */
 .input-group {
@@ -519,14 +660,34 @@ footer {
     position: relative;
     z-index: 10;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 6px;
 }
 
-footer::before {
-    content: '💚';
-    font-size: 0.75rem;
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+
+.footer-links a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.footer-links a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+.footer-sep {
+    color: var(--text-muted);
+    opacity: 0.4;
 }
 
 /* Modal Styles */
@@ -569,5 +730,391 @@ footer::before {
     
     .hero-title {
         font-size: 2.85rem;
+    }
+}
+
+/* ========== PWA: Update Toast ========== */
+.pwa-toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    animation: pwaSlideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.pwa-toast-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #064e3b;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(6, 78, 59, 0.35);
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.pwa-toast-icon {
+    font-size: 1.2rem;
+    animation: pwaSpin 2s linear infinite;
+}
+
+.pwa-toast-btn {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: 'Outfit', sans-serif;
+}
+
+.pwa-toast-btn:hover {
+    background: #34d399;
+}
+
+.pwa-toast-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.pwa-toast-close:hover {
+    color: white;
+}
+
+/* ========== PWA: Install Banner ========== */
+.pwa-install-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9998;
+    animation: pwaSlideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.pwa-install-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+    padding: 14px 18px;
+    border-top: 2px solid rgba(4, 120, 87, 0.15);
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+    font-family: 'Outfit', sans-serif;
+}
+
+.pwa-install-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pwa-install-icon {
+    font-size: 1.5rem;
+}
+
+.pwa-install-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--primary-dark);
+}
+
+.pwa-install-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.pwa-install-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pwa-install-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: 'Outfit', sans-serif;
+    box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);
+}
+
+.pwa-install-btn:hover {
+    background: #059669;
+}
+
+.pwa-install-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.pwa-install-close:hover {
+    color: var(--text-main);
+}
+
+/* ========== PWA: Offline Banner ========== */
+.pwa-offline {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background: #dc2626;
+    color: white;
+    text-align: center;
+    padding: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    animation: pwaSlideDown 0.3s ease;
+}
+
+/* ========== PWA: Animations ========== */
+@keyframes pwaSlideDown {
+    from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes pwaSlideUp {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pwaSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ========== PWA: Safe Area (Notch phones) ========== */
+@supports (padding-top: env(safe-area-inset-top)) {
+    .pwa-toast {
+        top: calc(16px + env(safe-area-inset-top));
+    }
+    .pwa-offline {
+        padding-top: calc(8px + env(safe-area-inset-top));
+    }
+    .pwa-install-banner {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* ========== Phase 5: Frontend Polish ========== */
+
+/* Input Shake Animation (validation error) */
+@keyframes inputShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.input-shake {
+    animation: inputShake 0.45s ease;
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+/* Button Ripple Effect */
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: rippleAnim 0.6s ease-out;
+    pointer-events: none;
+}
+
+@keyframes rippleAnim {
+    to { transform: scale(4); opacity: 0; }
+}
+
+/* Page Load Fade-in */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.glass-panel {
+    animation: fadeInUp 0.5s ease-out both;
+}
+
+.main-panel {
+    animation-delay: 0.1s;
+}
+
+.results-panel {
+    animation: fadeInUp 0.4s ease-out both;
+}
+
+/* Results Panel Slide-in */
+.results-panel.show {
+    animation: slideInResults 0.35s ease-out both;
+}
+
+@keyframes slideInResults {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Better Focus Ring for Keyboard Navigation */
+*:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+#link-input:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 8px 20px rgba(6, 78, 59, 0.06);
+}
+
+.action-btn:focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 4px;
+}
+
+/* Better Download Button States */
+.action-btn.loading .btn-icon {
+    display: none;
+}
+
+.action-btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border: 3.5px solid rgba(255,255,255,0.25);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s infinite linear;
+}
+
+/* Smooth Status Transitions */
+#app-status {
+    transition: color 0.3s ease, transform 0.2s ease;
+}
+
+#app-status.status-error {
+    color: #dc2626 !important;
+    animation: inputShake 0.4s ease;
+}
+
+#app-status.status-success {
+    color: #059669 !important;
+}
+
+/* Download Option Active State */
+.download-option:active {
+    transform: scale(0.98);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+/* Scrollbar Styling */
+#mobile-frame::-webkit-scrollbar {
+    width: 4px;
+}
+
+#mobile-frame::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#mobile-frame::-webkit-scrollbar-thumb {
+    background: rgba(6, 78, 59, 0.15);
+    border-radius: 4px;
+}
+
+#mobile-frame::-webkit-scrollbar-thumb:hover {
+    background: rgba(6, 78, 59, 0.25);
+}
+
+/* Header Action Button Positioned */
+#info-btn {
+    position: absolute;
+    left: 1.25rem;
+}
+
+#share-btn {
+    position: absolute;
+    right: calc(1.25rem + 54px);
+}
+
+#favorite-btn {
+    position: absolute;
+    right: 1.25rem;
+}
+
+/* Platform Pills Responsive */
+@media (max-width: 360px) {
+    .platforms-section {
+        gap: 6px;
+    }
+    .platform-pill {
+        padding: 3px 7px;
+        font-size: 0.68rem;
+    }
+}
+
+/* Small Screen Polish */
+@media (max-width: 380px) {
+    .glass-panel {
+        padding: 1.75rem 1.25rem;
+        border-radius: 24px;
+    }
+    
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 0.88rem;
+    }
+    
+    .action-btn {
+        width: 130px;
+        height: 130px;
+    }
+    
+    .social-proof {
+        font-size: 0.72rem;
+        padding: 4px 10px;
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .action-btn {
+        animation: none;
+    }
+    
+    .proof-dot {
+        animation: none;
     }
 }

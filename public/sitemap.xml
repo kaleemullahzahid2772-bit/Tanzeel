@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+    <!-- Main Page -->
+    <url>
+        <loc>https://tanzeel.app/</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>1.0</priority>
+        <xhtml:link rel="alternate" hreflang="en" href="https://tanzeel.app/" />
+        <xhtml:link rel="alternate" hreflang="ar" href="https://tanzeel.app/?lang=ar" />
+        <xhtml:link rel="alternate" hreflang="ur" href="https://tanzeel.app/?lang=ur" />
+    </url>
+
+    <!-- YouTube Downloader Landing -->
+    <url>
+        <loc>https://tanzeel.app/#youtube</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <!-- Instagram Downloader Landing -->
+    <url>
+        <loc>https://tanzeel.app/#instagram</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <!-- Twitter/X Downloader Landing -->
+    <url>
+        <loc>https://tanzeel.app/#twitter</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <!-- TikTok Downloader Landing -->
+    <url>
+        <loc>https://tanzeel.app/#tiktok</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <!-- About Page -->
+    <url>
+        <loc>https://tanzeel.app/#about</loc>
+        <lastmod>2026-07-28</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+
+</urlset>

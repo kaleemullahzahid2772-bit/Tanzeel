@@ -1,44 +1,52 @@
-name: CI/CD Pipeline - Test & Live Auto-Deploy
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
-  test-and-lint:
-    name: 🧪 Run Automated Tests
+  test:
+    name: Tests & Security
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js Environment
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: 📦 Install Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: 🚀 Execute Integration Tests
+      - name: Run tests
         run: npm test
 
+      - name: Security audit
+        run: npm audit --omit=dev || true
+        continue-on-error: true
+
+      - name: Start server & health check
+        run: |
+          node server.js &
+          sleep 5
+          curl -f http://localhost:3000/health || exit 1
+          echo "Health check passed"
+        env:
+          NODE_ENV: test
+          PORT: 3000
+
   deploy:
-    name: 🌐 Trigger Live Deployment
-    needs: test-and-lint
+    name: Deploy
+    needs: test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📣 Notify Deployment Triggered
-        run: echo "CI tests passed! Triggering automatic live server deployment..."
-
-      # Optional: Trigger Render Webhook Deployment if RENDER_DEPLOY_HOOK_URL secret is provided in GitHub repository settings
-      - name: ⚡ Trigger Render / Webhook Deployment
+      - name: Trigger Render deployment
         if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
-        run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

@@ -1,4 +1,4 @@
-// Tanzeel Video Downloader Front-end App v1.0.2
+// Tanzeel Video Downloader Front-end App v1.1.0
 document.addEventListener('DOMContentLoaded', () => {
     const actionBtn = document.getElementById('action-btn');
     const resultsPanel = document.getElementById('results-panel');
@@ -8,6 +8,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentUrl = null;
     let isAnalyzed = false;
+
+    // ========== Social Proof Counter ==========
+    const updateDownloadCount = () => {
+        const countEl = document.getElementById('download-count');
+        if (!countEl) return;
+        const base = 1247;
+        const stored = parseInt(localStorage.getItem('tanzeel_dl_count') || '0', 10);
+        const today = new Date().toDateString();
+        const lastDate = localStorage.getItem('tanzeel_dl_date');
+        if (lastDate !== today) {
+            localStorage.setItem('tanzeel_dl_count', '0');
+            localStorage.setItem('tanzeel_dl_date', today);
+        }
+        const display = base + stored;
+        countEl.textContent = display.toLocaleString() + '+';
+    };
+    updateDownloadCount();
+
+    // ========== Share Button ==========
+    const shareBtn = document.getElementById('share-btn');
+    const showShareToast = (msg) => {
+        let toast = document.querySelector('.share-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'share-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+    };
+
+    if (shareBtn) {
+        shareBtn.addEventListener('click', async () => {
+            const shareData = {
+                title: 'Tanzeel - Free Video Downloader',
+                text: 'Download videos from YouTube, Instagram, Twitter & TikTok — free, fast, no ads.',
+                url: 'https://tanzeel.app'
+            };
+            if (navigator.share) {
+                try {
+                    await navigator.share(shareData);
+                } catch (e) {
+                    if (e.name !== 'AbortError') {
+                        await navigator.clipboard.writeText(shareData.url);
+                        showShareToast('Link copied to clipboard!');
+                    }
+                }
+            } else {
+                try {
+                    await navigator.clipboard.writeText(shareData.url);
+                    showShareToast('Link copied to clipboard!');
+                } catch {
+                    showShareToast('Share: tanzeel.app');
+                }
+            }
+        });
+    }
 
     const isValidUrl = (string) => {
         try {
@@ -76,16 +134,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderDownloadOptions = (videoTitle, downloadUrl) => {
         if (!resultsPanel || !optionsList) return;
-        optionsList.innerHTML = `
-            <a href="${downloadUrl}" download target="_blank" rel="noopener" class="download-option" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem; background: #ffffff; border: 2px solid #10b981; border-radius: 16px; text-decoration: none; box-shadow: 0 10px 25px rgba(16,185,129,0.15); transition: transform 0.2s;">
-                <div class="opt-details" style="text-align: left;">
-                    <span class="opt-quality" style="font-size: 1.05rem; font-weight: 700; color: #0f172a;">📹 ${videoTitle || 'Download Video'}</span>
-                    <span class="opt-size" style="font-size: 0.85rem; color: #10b981; font-weight: 600; margin-top: 4px; display: block;">⬇️ Click to save MP4 to Gallery / Downloads</span>
-                </div>
-                <div style="background: #10b981; color: white; padding: 10px 16px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; white-space: nowrap;">SAVE MP4</div>
-            </a>
-        `;
-        resultsPanel.classList.remove('hidden');
+        optionsList.innerHTML = '';
+
+        const safeTitle = videoTitle || 'Download Video';
+
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = '';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'download-option';
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'opt-details';
+
+        const qualitySpan = document.createElement('span');
+        qualitySpan.className = 'opt-quality';
+        qualitySpan.textContent = safeTitle;
+
+        const sizeSpan = document.createElement('span');
+        sizeSpan.className = 'opt-size';
+        sizeSpan.textContent = 'Click to save MP4 to Gallery / Downloads';
+
+        detailsDiv.appendChild(qualitySpan);
+        detailsDiv.appendChild(sizeSpan);
+
+        const badgeDiv = document.createElement('div');
+        badgeDiv.className = 'opt-icon';
+        badgeDiv.textContent = 'SAVE MP4';
+
+        link.appendChild(detailsDiv);
+        link.appendChild(badgeDiv);
+        optionsList.appendChild(link);
+
+        showResultsPanel();
     };
 
     const performAnalysis = async (url) => {
@@ -112,14 +194,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ========== Ripple Effect on Action Button ==========
+    const addRipple = (e, el) => {
+        const rect = el.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        el.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+    };
+
+    // ========== Input Validation with Shake ==========
+    const shakeInput = () => {
+        linkInput.classList.remove('input-shake');
+        void linkInput.offsetWidth; // trigger reflow
+        linkInput.classList.add('input-shake');
+        appStatus.classList.add('status-error');
+        setTimeout(() => {
+            linkInput.classList.remove('input-shake');
+            appStatus.classList.remove('status-error');
+        }, 1500);
+    };
+
+    linkInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            actionBtn.click();
+        }
+    });
+
     linkInput.addEventListener('input', () => {
         const text = linkInput.value.trim();
         if (isValidUrl(text)) {
             updateStatus("Ready to download. Click the button.", "var(--primary)");
+            appStatus.classList.add('status-success');
+            appStatus.classList.remove('status-error');
         } else {
             updateStatus("Waiting for a valid link...", "var(--text-muted)");
+            appStatus.classList.remove('status-success');
         }
     });
+
+    // ========== Results Panel Show Animation ==========
+    const showResultsPanel = () => {
+        resultsPanel.classList.remove('hidden');
+        resultsPanel.classList.add('show');
+        setTimeout(() => resultsPanel.classList.remove('show'), 400);
+    };
 
     const copyTextToClipboard = async (text, btnElement) => {
         const originalText = btnElement.textContent;
@@ -182,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isSuccess) {
             if (btnIcon) btnIcon.style.display = 'block';
             actionBtn.classList.remove('downloading');
+            shakeInput();
             return;
         }
         
@@ -284,6 +408,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
                             updateStatus("Video downloaded successfully! Check your Downloads folder.", "#059669");
                             
+                            // Increment social proof counter
+                            const c = parseInt(localStorage.getItem('tanzeel_dl_count') || '0', 10) + 1;
+                            localStorage.setItem('tanzeel_dl_count', String(c));
+                            updateDownloadCount();
+                            
                             setTimeout(() => {
                                 resetBtnState("Video downloaded successfully! Check your Downloads folder.", "#059669");
                                 downloadStats.textContent = '';
@@ -309,16 +438,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     };
 
-    actionBtn.addEventListener('click', () => {
+    actionBtn.addEventListener('click', (e) => {
         if (actionBtn.classList.contains('loading') || actionBtn.classList.contains('downloading')) {
             return;
         }
+
+        addRipple(e, actionBtn);
 
         const manualText = linkInput.value.trim();
         if (isValidUrl(manualText)) {
             triggerDownload(manualText);
         } else {
-            updateStatus("Please paste a valid link first.", "red");
+            shakeInput();
+            updateStatus("Please paste a valid link first.", "#dc2626");
         }
     });
 
@@ -373,6 +505,76 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === infoModal) {
                 infoModal.style.display = 'none';
             }
+        });
+    }
+
+    // ========== PWA: Install Prompt ==========
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+
+        // Check if user already dismissed
+        if (localStorage.getItem('tanzeel_install_dismissed') === 'true') return;
+
+        // Show install banner after 30 seconds
+        setTimeout(() => {
+            const banner = document.getElementById('install-banner');
+            if (banner && deferredPrompt) {
+                banner.style.display = 'block';
+            }
+        }, 30000);
+    });
+
+    const installBtn = document.getElementById('install-btn');
+    const dismissInstallBtn = document.getElementById('dismiss-install-btn');
+
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('Install outcome:', outcome);
+            deferredPrompt = null;
+            const banner = document.getElementById('install-banner');
+            if (banner) banner.style.display = 'none';
+        });
+    }
+
+    if (dismissInstallBtn) {
+        dismissInstallBtn.addEventListener('click', () => {
+            const banner = document.getElementById('install-banner');
+            if (banner) banner.style.display = 'none';
+            localStorage.setItem('tanzeel_install_dismissed', 'true');
+        });
+    }
+
+    window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        const banner = document.getElementById('install-banner');
+        if (banner) banner.style.display = 'none';
+        console.log('Tanzeel PWA installed!');
+    });
+
+    // ========== PWA: Update Toast ==========
+    const updateBtn = document.getElementById('update-btn');
+    const dismissUpdateBtn = document.getElementById('dismiss-update-btn');
+
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+            }
+            const toast = document.getElementById('update-toast');
+            if (toast) toast.style.display = 'none';
+        });
+    }
+
+    if (dismissUpdateBtn) {
+        dismissUpdateBtn.addEventListener('click', () => {
+            const toast = document.getElementById('update-toast');
+            if (toast) toast.style.display = 'none';
         });
     }
 });

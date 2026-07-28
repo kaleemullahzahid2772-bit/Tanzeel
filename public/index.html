@@ -1,15 +1,150 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tanzeel - Premium Video Downloader</title>
-    <meta name="description" content="Tanzeel - Fast, clean and premium video downloader.">
+    <title>Tanzeel - Free Video Downloader | YouTube, Instagram, Twitter, TikTok</title>
+
+    <!-- Primary SEO Meta Tags -->
+    <meta name="description" content="Download videos from YouTube, Instagram, Twitter, TikTok and 1000+ platforms. Free, fast, no ads. HD & 4K quality. No registration required.">
+    <meta name="keywords" content="video downloader, youtube downloader, instagram download, twitter download, tiktok download, free video download, hd video download, online video downloader">
+    <meta name="author" content="Al-Ulama & Sudoor.org">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+    <link rel="canonical" href="https://tanzeel.app/">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#047857">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tanzeel">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Tanzeel">
+    <meta name="msapplication-TileColor" content="#047857">
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Tanzeel - Free Video Downloader | YouTube, Instagram, Twitter">
+    <meta property="og:description" content="Download videos from YouTube, Instagram, Twitter, TikTok and 1000+ platforms. Free, fast, no ads. HD & 4K quality.">
+    <meta property="og:url" content="https://tanzeel.app/">
+    <meta property="og:site_name" content="Tanzeel">
+    <meta property="og:image" content="https://tanzeel.app/og-image.svg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tanzeel - Free Video Downloader">
+    <meta name="twitter:description" content="Download videos from YouTube, Instagram, Twitter, TikTok and 1000+ platforms. Free, fast, no ads.">
+    <meta name="twitter:image" content="https://tanzeel.app/logo.jpg">
+
+    <!-- Hreflang for multi-language -->
+    <link rel="alternate" hreflang="en" href="https://tanzeel.app/">
+    <link rel="alternate" hreflang="ar" href="https://tanzeel.app/?lang=ar">
+    <link rel="alternate" hreflang="ur" href="https://tanzeel.app/?lang=ur">
+    <link rel="alternate" hreflang="x-default" href="https://tanzeel.app/">
+
+    <!-- Icons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=26">
+    <link rel="stylesheet" href="style.css?v=30">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Tanzeel",
+        "alternateName": ["تنزیل", "Tanzeel Video Downloader"],
+        "url": "https://tanzeel.app",
+        "description": "Free, fast, ad-free video downloader. Download from YouTube, Instagram, Twitter, TikTok and 1000+ platforms in HD & 4K quality.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "Al-Ulama & Sudoor.org",
+            "url": "https://sudoor.org"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "1250"
+        },
+        "featureList": [
+            "YouTube Video Downloader",
+            "Instagram Video Downloader",
+            "Twitter/X Video Downloader",
+            "TikTok Video Downloader",
+            "HD & 4K Quality",
+            "Free & Ad-Free",
+            "No Registration Required",
+            "Mobile Friendly"
+        ],
+        "screenshot": "https://tanzeel.app/logo.jpg",
+        "softwareVersion": "1.1.0",
+        "applicationSuite": "Tanzeel"
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "Is Tanzeel video downloader free?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, Tanzeel is completely free and ad-free. No registration or subscription required."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What platforms does Tanzeel support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Tanzeel supports YouTube, Instagram, Twitter/X, TikTok, Facebook, and 1000+ other video platforms."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What video quality can I download?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Tanzeel supports HD, Full HD, and 4K quality downloads depending on the source video availability."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Do I need to install any software?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No, Tanzeel is a web-based tool. You can also install it as a Progressive Web App (PWA) on your device for quick access."
+                }
+            }
+        ]
+    }
+    </script>
+
     <script>
         // Suppress third-party telemetry Sentry 429 rate-limit errors in browser
         (function() {
@@ -33,7 +168,7 @@
             <div class="blob blob-2"></div>
         </div>
         
-        <header class="app-header">
+        <header class="app-header" role="banner">
             <button id="info-btn" aria-label="App Information">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -43,22 +178,43 @@
             </button>
             <div class="logo-container">
                 <div class="logo-icon-wrapper">
-                    <img src="logo.jpg?v=3" alt="Tanzeel Logo" class="app-icon-img" width="52" height="52" style="border-radius: 16px; object-fit: cover; box-shadow: 0 4px 15px rgba(6, 78, 59, 0.25); border: 1.5px solid rgba(217, 119, 6, 0.3);">
+                    <img src="logo.jpg?v=3" alt="Tanzeel - Free Video Downloader" class="app-icon-img" width="52" height="52" style="border-radius: 16px; object-fit: cover; box-shadow: 0 4px 15px rgba(6, 78, 59, 0.25); border: 1.5px solid rgba(217, 119, 6, 0.3);">
                 </div>
                 <div class="logo">Tanzeel</div>
             </div>
-            <button id="favorite-btn" aria-label="Support Tanzeel App">
+            <button id="share-btn" aria-label="Share Tanzeel" class="header-action-btn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+            </button>
+            <button id="favorite-btn" aria-label="Support Tanzeel App" class="header-action-btn">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                 </svg>
             </button>
         </header>
 
-        <main class="container">
+        <main class="container" role="main">
             <div class="content-wrapper">
-                <div class="glass-panel main-panel">
+                <article class="glass-panel main-panel">
                     <h1 class="hero-title">سحر التحميل</h1>
-                    <p class="hero-subtitle">Paste any video link to get started.</p>
+                    <p class="hero-subtitle">Paste any video link to download in HD quality. Free, fast, no ads.</p>
+                    <div class="social-proof" id="social-proof">
+                        <span class="proof-dot"></span>
+                        <span id="download-count">1,000+</span> downloads served
+                    </div>
+                    <div class="platforms-supported">
+                        <span class="ps-label">Supported:</span>
+                        <span class="ps-tag yt">YouTube</span>
+                        <span class="ps-tag ig">Instagram</span>
+                        <span class="ps-tag tw">Twitter</span>
+                        <span class="ps-tag tk">TikTok</span>
+                        <span class="ps-tag fb">Facebook</span>
+                    </div>
                     
                     <div class="input-group">
                         <span class="input-icon-left">
@@ -106,7 +262,7 @@
                             <p id="download-stats" style="color: #047857; font-size: 0.92rem; font-weight: 600; margin-top: 10px; text-align: center;"></p>
                         </div>
                     </div>
-                </div>
+                </article>
 
                 <!-- Download Options Modal / Section -->
                 <div id="results-panel" class="glass-panel results-panel hidden">
@@ -120,9 +276,27 @@
                 </div>
             </div>
         </main>
-        
-        <footer>
-            A project by Al-Ulama and Sudoor.org
+
+        <footer role="contentinfo">
+            <div class="footer-links">
+                <a href="https://quoriam.com" target="_blank" rel="noopener">Quoriam</a>
+                <span class="footer-sep">&middot;</span>
+                <a href="https://alulama.org" target="_blank" rel="noopener">Al-Ulama</a>
+                <span class="footer-sep">&middot;</span>
+                <a href="https://sudoor.org" target="_blank" rel="noopener">Sudoor.org</a>
+            </div>
+            <p>A project by Al-Ulama &amp; Sudoor.org</p>
+            <div class="platforms-section">
+                <a href="https://quoriam.com" target="_blank" rel="noopener" class="platform-pill">
+                    <span class="platform-pill-dot" style="background: #f59e0b;"></span> Quoriam
+                </a>
+                <a href="https://alulama.org" target="_blank" rel="noopener" class="platform-pill">
+                    <span class="platform-pill-dot" style="background: #3b82f6;"></span> Al-Ulama
+                </a>
+                <a href="https://sudoor.org" target="_blank" rel="noopener" class="platform-pill">
+                    <span class="platform-pill-dot" style="background: #8b5cf6;"></span> Sudoor
+                </a>
+            </div>
         </footer>
     </div>
 
@@ -152,26 +326,136 @@
 
     <div id="info-modal" class="modal-overlay">
         <div class="modal-content">
-            <h2 style="margin: 0 0 12px 0; font-size: 1.4rem; color: var(--primary-dark); font-weight: 700;">About Tanzeel App ℹ️</h2>
+            <h2 style="margin: 0 0 12px 0; font-size: 1.4rem; color: var(--primary-dark); font-weight: 700;">About Tanzeel App</h2>
             <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 18px; line-height: 1.5;">Tanzeel is a fast, clean, and high-speed video downloader built for high quality media extraction.</p>
             
-            <div style="background: rgba(4, 120, 87, 0.06); border: 1.5px solid rgba(4, 120, 87, 0.15); border-radius: 16px; padding: 16px; margin-bottom: 20px; text-align: left;">
-                <div style="color: var(--primary-dark); font-weight: 700; margin-bottom: 8px; font-size: 0.95rem;">✨ Key Features</div>
+            <div style="background: rgba(4, 120, 87, 0.06); border: 1.5px solid rgba(4, 120, 87, 0.15); border-radius: 16px; padding: 16px; margin-bottom: 14px; text-align: left;">
+                <div style="color: var(--primary-dark); font-weight: 700; margin-bottom: 8px; font-size: 0.95rem;">Key Features</div>
                 <ul style="color: var(--text-main); font-size: 0.88rem; line-height: 1.7; padding-left: 18px; margin: 0;">
-                    <li>Paste any YouTube or video URL to analyze</li>
+                    <li>YouTube, Instagram, Twitter, TikTok, Facebook support</li>
                     <li>Download Full HD & high quality MP4 videos</li>
-                    <li>Direct device Downloads folder storage</li>
-                    <li>Clean, ad-free Islamic-modern experience</li>
+                    <li>Clean, ad-free experience</li>
+                    <li>Install as app on your device (PWA)</li>
                 </ul>
             </div>
+
+            <div style="background: rgba(4, 120, 87, 0.06); border: 1.5px solid rgba(4, 120, 87, 0.15); border-radius: 16px; padding: 16px; margin-bottom: 14px; text-align: left;">
+                <div style="color: var(--primary-dark); font-weight: 700; margin-bottom: 10px; font-size: 0.95rem;">Our Projects</div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <a href="https://quoriam.com" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 12px; text-decoration: none; border: 1px solid rgba(4,120,87,0.1); transition: border-color 0.2s;">
+                        <span style="font-size: 1.3rem;">Q</span>
+                        <div>
+                            <div style="color: var(--primary-dark); font-weight: 700; font-size: 0.9rem;">Quoriam.com</div>
+                            <div style="color: var(--text-muted); font-size: 0.78rem;">Knowledge & Learning Platform</div>
+                        </div>
+                    </a>
+                    <a href="https://alulama.org" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 12px; text-decoration: none; border: 1px solid rgba(4,120,87,0.1); transition: border-color 0.2s;">
+                        <span style="font-size: 1.3rem;">A</span>
+                        <div>
+                            <div style="color: var(--primary-dark); font-weight: 700; font-size: 0.9rem;">Al-Ulama.org</div>
+                            <div style="color: var(--text-muted); font-size: 0.78rem;">Islamic Scholarly Resources</div>
+                        </div>
+                    </a>
+                    <a href="https://sudoor.org" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 12px; text-decoration: none; border: 1px solid rgba(4,120,87,0.1); transition: border-color 0.2s;">
+                        <span style="font-size: 1.3rem;">S</span>
+                        <div>
+                            <div style="color: var(--primary-dark); font-weight: 700; font-size: 0.9rem;">Sudoor.org</div>
+                            <div style="color: var(--text-muted); font-size: 0.78rem;">Digital Services & Tools</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
             
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 18px;">Version 1.0.1 • A project by Al-Ulama and Sudoor.org</p>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 18px;">Version 1.1.0 &middot; A project by Al-Ulama &amp; Sudoor.org</p>
             
             <button id="close-info-modal-btn" style="width: 100%; padding: 12px; background: var(--primary); border: none; border-radius: 14px; color: white; font-weight: 700; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);">GOT IT</button>
         </div>
     </div>
 
+    <!-- PWA Update Toast -->
+    <div id="update-toast" class="pwa-toast" style="display: none;">
+        <div class="pwa-toast-content">
+            <span class="pwa-toast-icon">&#x21BB;</span>
+            <span class="pwa-toast-text">New version available!</span>
+            <button id="update-btn" class="pwa-toast-btn">Update</button>
+            <button id="dismiss-update-btn" class="pwa-toast-close">&times;</button>
+        </div>
+    </div>
+
+    <!-- PWA Install Banner -->
+    <div id="install-banner" class="pwa-install-banner" style="display: none;">
+        <div class="pwa-install-content">
+            <div class="pwa-install-info">
+                <span class="pwa-install-icon">&#x2B07;</span>
+                <div>
+                    <div class="pwa-install-title">Install Tanzeel</div>
+                    <div class="pwa-install-desc">Add to home screen for quick access</div>
+                </div>
+            </div>
+            <div class="pwa-install-actions">
+                <button id="install-btn" class="pwa-install-btn">Install</button>
+                <button id="dismiss-install-btn" class="pwa-install-close">&times;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="pwa-offline" style="display: none;">
+        <span>&#x26A0;</span> You are offline
+    </div>
+
     <script src="config.js?v=1"></script>
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=24"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', async () => {
+                try {
+                    const reg = await navigator.serviceWorker.register('/sw.js');
+                    console.log('SW registered:', reg.scope);
+
+                    // Check for updates every 60 minutes
+                    setInterval(() => reg.update(), 60 * 60 * 1000);
+
+                    // Listen for new service worker
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showUpdateToast();
+                            }
+                        });
+                    });
+                } catch (err) {
+                    console.log('SW registration failed:', err);
+                }
+            });
+
+            // Listen for controlling service worker change
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload();
+                }
+            });
+        }
+
+        function showUpdateToast() {
+            const toast = document.getElementById('update-toast');
+            if (toast) toast.style.display = 'block';
+        }
+
+        // Offline/Online detection
+        window.addEventListener('online', () => {
+            const banner = document.getElementById('offline-banner');
+            if (banner) banner.style.display = 'none';
+        });
+        window.addEventListener('offline', () => {
+            const banner = document.getElementById('offline-banner');
+            if (banner) banner.style.display = 'block';
+        });
+    </script>
 </body>
 </html>

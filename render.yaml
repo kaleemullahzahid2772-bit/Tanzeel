@@ -6,6 +6,9 @@ services:
     region: oregon
     dockerfilePath: ./Dockerfile
     autoDeploy: true
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 3000
+      - key: NODE_ENV
+        value: production
