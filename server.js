@@ -104,35 +104,49 @@ try {
 
 let binaryAvailabilityCache = null;
 function isBinaryAvailable() {
-    if (binaryAvailabilityCache !== null) return binaryAvailabilityCache;
-    try {
-        if (typeof ytDlpPath === 'string' && fs.existsSync(ytDlpPath)) {
-            if (!isWin) {
-                try { fs.chmodSync(ytDlpPath, '755'); } catch (e) {}
+    if (binaryAvailabilityCache === true) return true;
+
+    const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
+    const tmpPath = path.join(os.tmpdir(), targetName);
+
+    if (typeof ytDlpPath === 'string' && fs.existsSync(ytDlpPath)) {
+        if (!isWin) {
+            try { fs.chmodSync(ytDlpPath, '755'); } catch (e) {}
+        }
+        binaryAvailabilityCache = true;
+        return true;
+    }
+
+    if (fs.existsSync(tmpPath)) {
+        try {
+            const stats = fs.statSync(tmpPath);
+            if (stats.size > 1000000) {
+                if (!isWin) {
+                    try { fs.chmodSync(tmpPath, '755'); } catch (e) {}
+                }
+                ytDlpPath = tmpPath;
+                binaryAvailabilityCache = true;
+                return true;
             }
-            const { execFileSync } = require('child_process');
-            execFileSync(ytDlpPath, ['--version'], { stdio: 'ignore', timeout: 3000 });
-            binaryAvailabilityCache = true;
-            return true;
-        }
-        if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
-            const { execFileSync } = require('child_process');
-            execFileSync(process.env.YTDLP_PATH, ['--version'], { stdio: 'ignore', timeout: 3000 });
-            binaryAvailabilityCache = true;
-            return true;
-        }
-        if (ytDlpPath === 'yt-dlp' || (typeof ytDlpPath === 'string' && ytDlpPath.endsWith('yt-dlp'))) {
+        } catch (e) {}
+    }
+
+    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+        ytDlpPath = process.env.YTDLP_PATH;
+        binaryAvailabilityCache = true;
+        return true;
+    }
+
+    if (ytDlpPath === 'yt-dlp' || (typeof ytDlpPath === 'string' && ytDlpPath.endsWith('yt-dlp'))) {
+        try {
             const whichCmd = isWin ? 'where yt-dlp' : 'which yt-dlp';
             const { execSync } = require('child_process');
             execSync(whichCmd, { stdio: 'ignore' });
             binaryAvailabilityCache = true;
             return true;
-        }
-    } catch (e) {
-        binaryAvailabilityCache = false;
-        return false;
+        } catch (e) {}
     }
-    binaryAvailabilityCache = false;
+
     return false;
 }
 
@@ -141,6 +155,7 @@ async function getYtdlCoreStreamUrl(videoUrl) {
     try {
         let options = {
             requestOptions: {
+                rejectUnauthorized: false,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 }
@@ -865,9 +880,10 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-warnings',
             '--ignore-errors',
             '--no-check-certificate',
+            '--js-runtimes', 'node',
             '-g',
             '--get-title',
-            '-f', '18/22/b/best[ext=mp4]/best'
+            '-f', '18/22/b/best[ext=mp4]/best/bestvideo+bestaudio'
         ];
         if (ffmpegPath) {
             const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
