@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
         iframe.src = downloadUrl;
 
         let pollCount = 0;
-        const maxPolls = 60; // 30 seconds max polling duration
+        const maxPolls = 60; // 60 seconds max polling duration
 
         const resetBtnState = (statusText, statusColor, isFailure = false) => {
             clearInterval(pollInterval);
@@ -435,7 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
                 }
             }
-        }, 500);
+        }, 1000);
     };
 
     actionBtn.addEventListener('click', (e) => {

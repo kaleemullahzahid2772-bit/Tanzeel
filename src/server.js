@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const securityHeaders = require('./middleware/security');
-const rateLimiter = require('./middleware/rateLimit');
+const { rateLimiter, progressRateLimiter } = require('./middleware/rateLimit');
 const { jsonErrorHandler, globalErrorHandler } = require('./middleware/errorHandler');
 const ytdlp = require('./services/ytdlp');
 const log = require('./utils/logger');
@@ -123,6 +123,7 @@ app.get('/', (req, res) => {
 // API Routes
 app.use(rateLimiter);
 app.use(createAnalyzeRouter(PROJECT_ROOT));
+app.use(progressRateLimiter);
 app.use(progressRouter);
 app.use(createDownloadRouter(PROJECT_ROOT));
 
