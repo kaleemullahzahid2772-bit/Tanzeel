@@ -912,6 +912,11 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
 
 
 
+    const lastErrorDetails = {
+        hasBinary: hasBinary,
+        ytDlpPath: ytDlpPath
+    };
+
     if (hasBinary) {
         const extractArgs = [
             '--no-playlist',
@@ -935,7 +940,11 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
 
         try {
             const binaryResult = await new Promise((resolve) => {
-                execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout) => {
+                execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                    if (error) lastErrorDetails.ytDlpErr = error.message;
+                    if (stderr) lastErrorDetails.ytDlpStderr = stderr.trim();
+                    if (stdout) lastErrorDetails.ytDlpStdout = stdout.trim();
+
                     if (!stdout || !stdout.trim()) return resolve(null);
                     const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
                     const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
@@ -952,7 +961,9 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
                 const piped = await proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (binErr) {}
+        } catch (binErr) {
+            lastErrorDetails.binCatchErr = binErr.message;
+        }
     }
 
     // Layer 2: @distube/ytdl-core JS Extractor
@@ -962,7 +973,9 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             const piped = await proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId);
             if (piped) return;
         }
-    } catch (ytdlErr) {}
+    } catch (ytdlErr) {
+        lastErrorDetails.ytdlErr = ytdlErr.message;
+    }
 
     // Layer 3: Cobalt API Stream
     try {
@@ -971,7 +984,9 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             const piped = await proxyVideoStream(cobaltUrl, 'Tanzeel_Video', res, downloadId);
             if (piped) return;
         }
-    } catch (cobaltErr) {}
+    } catch (cobaltErr) {
+        lastErrorDetails.cobaltErr = cobaltErr.message;
+    }
 
     // Layer 4: Piped API Stream
     if (videoId) {
@@ -981,7 +996,9 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
                 const piped = await proxyVideoStream(pipedStream.url, sanitizeFilename(pipedStream.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (pipedErr) {}
+        } catch (pipedErr) {
+            lastErrorDetails.pipedErr = pipedErr.message;
+        }
     }
 
     // Layer 5: Invidious API Stream
@@ -992,7 +1009,9 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
                 const piped = await proxyVideoStream(invidiousStream.url, sanitizeFilename(invidiousStream.title), res, downloadId);
                 if (piped) return;
             }
-        } catch (invErr) {}
+        } catch (invErr) {
+            lastErrorDetails.invErr = invErr.message;
+        }
     }
 
     // All extraction layers exhausted: return clean HTTP 400 JSON error
@@ -1004,7 +1023,8 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
         return res.json({
             success: false,
             error: 'EXTRACTION_FAILED',
-            message: 'Unable to extract video stream from source.'
+            message: 'Unable to extract video stream from source.',
+            details: lastErrorDetails
         });
     }
 });
