@@ -843,7 +843,7 @@ async function getPipedDirectStreamUrl(videoId) {
         `https://pipedapi.drgns.space/streams/${videoId}`
     ];
     for (const instUrl of pipedInstances) {
-        const data = await httpsGetJson(instUrl, 2500);
+        const data = await httpsGetJson(instUrl, 6000);
         if (data && data.videoStreams && data.videoStreams.length > 0) {
             const combinedMp4 = data.videoStreams.find(s => s.mimeType && s.mimeType.includes('video/mp4') && s.hasAudio) ||
                                 data.videoStreams.find(s => s.quality === '720p' && s.hasAudio) ||
@@ -865,7 +865,7 @@ async function getInvidiousDirectStreamUrl(videoId) {
         `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`
     ];
     for (const instUrl of instances) {
-        const data = await httpsGetJson(instUrl, 2500);
+        const data = await httpsGetJson(instUrl, 6000);
         if (data && data.formatStreams && data.formatStreams.length > 0) {
             const combinedMp4 = data.formatStreams.find(s => String(s.itag) === '22') ||
                                 data.formatStreams.find(s => String(s.itag) === '18') ||
@@ -923,6 +923,7 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-warnings',
             '--ignore-errors',
             '--no-check-certificate',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '--extractor-args', 'youtube:player_skip=web,mweb,ios;player_client=android_vr,android',
             '-g',
             '--get-title',
