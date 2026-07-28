@@ -209,12 +209,16 @@ async function getYtdlCoreStreamUrl(videoUrl) {
     return null;
 }
 
-let isDownloadingBinary = false;
+let downloadPromise = null;
 function downloadBinaryIfNeeded() {
-    return new Promise((resolve) => {
-        if (isBinaryAvailable()) {
-            return resolve(ytDlpPath);
-        }
+    if (isBinaryAvailable()) {
+        return Promise.resolve(ytDlpPath);
+    }
+    if (downloadPromise) {
+        return downloadPromise;
+    }
+
+    downloadPromise = new Promise((resolve) => {
         const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
         const tmpPath = path.join(os.tmpdir(), targetName);
 
@@ -222,17 +226,24 @@ function downloadBinaryIfNeeded() {
             try {
                 const stats = fs.statSync(tmpPath);
                 if (stats.size > 1000000) {
+                    if (!isWin) {
+                        try { fs.chmodSync(tmpPath, '755'); } catch (e) {}
+                    }
                     ytDlpPath = tmpPath;
-                    binaryAvailabilityCache = true;
                     return resolve(ytDlpPath);
                 }
             } catch (e) {}
         }
 
-        if (isDownloadingBinary) {
-            return resolve(null);
+        const localBinary = path.join(__dirname, targetName);
+        if (fs.existsSync(localBinary)) {
+            try {
+                fs.copyFileSync(localBinary, tmpPath);
+                if (!isWin) fs.chmodSync(tmpPath, '755');
+                ytDlpPath = tmpPath;
+                return resolve(ytDlpPath);
+            } catch (e) {}
         }
-        isDownloadingBinary = true;
 
         console.log('yt-dlp binary missing on server. Auto-downloading standalone binary to:', tmpPath);
         const downloadUrl = isWin 
@@ -241,7 +252,7 @@ function downloadBinaryIfNeeded() {
 
         function fetchFile(url, dest, attempts = 0) {
             if (attempts > 5) {
-                isDownloadingBinary = false;
+                downloadPromise = null;
                 return resolve(null);
             }
             const parsedUrl = new URL(url);
@@ -261,7 +272,7 @@ function downloadBinaryIfNeeded() {
                     }
                 }
                 if (res.statusCode !== 200) {
-                    isDownloadingBinary = false;
+                    downloadPromise = null;
                     return resolve(null);
                 }
                 const fileStream = fs.createWriteStream(dest);
@@ -273,28 +284,28 @@ function downloadBinaryIfNeeded() {
                                 fs.chmodSync(dest, '755');
                             }
                             ytDlpPath = dest;
-                            binaryAvailabilityCache = true;
-                            isDownloadingBinary = false;
-                            console.log('yt-dlp binary successfully downloaded & cached at:', dest);
-                            resolve(dest);
-                        } catch (e) {
-                            isDownloadingBinary = false;
+                            resolve(ytDlpPath);
+                        } catch (err) {
                             resolve(null);
+                        } finally {
+                            downloadPromise = null;
                         }
                     });
                 });
-                fileStream.on('error', (err) => {
-                    fs.unlink(dest, () => {});
-                    isDownloadingBinary = false;
+                fileStream.on('error', () => {
+                    downloadPromise = null;
                     resolve(null);
                 });
-            }).on('error', (err) => {
-                isDownloadingBinary = false;
+            }).on('error', () => {
+                downloadPromise = null;
                 resolve(null);
             });
         }
+
         fetchFile(downloadUrl, tmpPath);
     });
+
+    return downloadPromise;
 }
 
 downloadBinaryIfNeeded().catch(() => {});
