@@ -351,6 +351,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(getApiUrl(`/progress?id=${downloadId}`));
                 if (!res.ok) {
                     failedPolls++;
+                    if (res.status === 429) {
+                        // Rate limited - back off polling
+                        clearInterval(pollInterval);
+                        setTimeout(() => {
+                            resetBtnState("Download in progress. Check your Downloads folder.", "#059669");
+                        }, 500);
+                        return;
+                    }
                 } else {
                     const data = await res.json();
                     

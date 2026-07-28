@@ -42,22 +42,28 @@ function createDownloadRouter(projectRoot) {
 
         const ffmpegPath = ytdlp.getFfmpegPath && ytdlp.getFfmpegPath();
 
-        // Layer 1: yt-dlp Binary
-        if (hasBinary) {
-            try {
-                const binaryResult = await ytdlp.extractWithBinary(url, projectRoot, ffmpegPath);
-                if (binaryResult && binaryResult.url) {
-                    const piped = await ytdlp.proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId, ffmpegPath);
-                    if (piped) return;
-                    console.error('Layer 1 (yt-dlp binary): proxyVideoStream returned false');
-                } else {
-                    console.error('Layer 1 (yt-dlp binary): no stream URL extracted');
+        const layerLog = [];
+
+        // Layer 1: yt-dlp Binary (YouTube URLs only - args are YouTube-specific)
+        if (videoId) {
+            if (hasBinary) {
+                try {
+                    const binaryResult = await ytdlp.extractWithBinary(url, projectRoot, ffmpegPath, layerLog);
+                    if (binaryResult && binaryResult.url) {
+                        const piped = await ytdlp.proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId, ffmpegPath);
+                        if (piped) return;
+                        layerLog.push('Layer 1: proxyVideoStream returned false');
+                    } else {
+                        layerLog.push('Layer 1: no stream URL extracted');
+                    }
+                } catch (binErr) {
+                    layerLog.push('Layer 1 failed: ' + binErr.message);
                 }
-            } catch (binErr) {
-                console.error('Layer 1 (yt-dlp binary) failed:', binErr.message);
+            } else {
+                layerLog.push('Layer 1: binary not available');
             }
         } else {
-            console.error('Layer 1 (yt-dlp binary): binary not available');
+            layerLog.push('Layer 1: skipped (not a YouTube URL)');
         }
 
         // Layer 2: @distube/ytdl-core
@@ -66,12 +72,12 @@ function createDownloadRouter(projectRoot) {
             if (ytdlResult && ytdlResult.url && isValidPublicUrl(ytdlResult.url)) {
                 const piped = await ytdlp.proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId, ffmpegPath);
                 if (piped) return;
-                console.error('Layer 2 (ytdl-core): proxyVideoStream returned false');
+                layerLog.push('Layer 2: proxyVideoStream returned false');
             } else {
-                console.error('Layer 2 (ytdl-core): no valid stream URL');
+                layerLog.push('Layer 2: no valid stream URL' + (ytdlResult ? ' (url=' + (ytdlResult.url || '').substring(0, 50) + ')' : ''));
             }
         } catch (ytdlErr) {
-            console.error('Layer 2 (ytdl-core) failed:', ytdlErr.message);
+            layerLog.push('Layer 2 failed: ' + ytdlErr.message);
         }
 
         // Layer 3: Cobalt API
@@ -80,12 +86,12 @@ function createDownloadRouter(projectRoot) {
             if (cobaltUrl && isValidPublicUrl(cobaltUrl)) {
                 const piped = await ytdlp.proxyVideoStream(cobaltUrl, 'Tanzeel_Video', res, downloadId, ffmpegPath);
                 if (piped) return;
-                console.error('Layer 3 (Cobalt): proxyVideoStream returned false');
+                layerLog.push('Layer 3: proxyVideoStream returned false');
             } else {
-                console.error('Layer 3 (Cobalt): no stream URL');
+                layerLog.push('Layer 3: no stream URL');
             }
         } catch (cobaltErr) {
-            console.error('Layer 3 (Cobalt) failed:', cobaltErr.message);
+            layerLog.push('Layer 3 failed: ' + cobaltErr.message);
         }
 
         // Layer 4: Piped API
@@ -95,12 +101,12 @@ function createDownloadRouter(projectRoot) {
                 if (pipedStream && pipedStream.url && isValidPublicUrl(pipedStream.url)) {
                     const piped = await ytdlp.proxyVideoStream(pipedStream.url, sanitizeFilename(pipedStream.title), res, downloadId, ffmpegPath);
                     if (piped) return;
-                    console.error('Layer 4 (Piped): proxyVideoStream returned false');
+                    layerLog.push('Layer 4: proxyVideoStream returned false');
                 } else {
-                    console.error('Layer 4 (Piped): no valid stream URL');
+                    layerLog.push('Layer 4: no valid stream URL');
                 }
             } catch (pipedErr) {
-                console.error('Layer 4 (Piped) failed:', pipedErr.message);
+                layerLog.push('Layer 4 failed: ' + pipedErr.message);
             }
         }
 
@@ -111,12 +117,12 @@ function createDownloadRouter(projectRoot) {
                 if (invidiousStream && invidiousStream.url && isValidPublicUrl(invidiousStream.url)) {
                     const piped = await ytdlp.proxyVideoStream(invidiousStream.url, sanitizeFilename(invidiousStream.title), res, downloadId, ffmpegPath);
                     if (piped) return;
-                    console.error('Layer 5 (Invidious): proxyVideoStream returned false');
+                    layerLog.push('Layer 5: proxyVideoStream returned false');
                 } else {
-                    console.error('Layer 5 (Invidious): no valid stream URL');
+                    layerLog.push('Layer 5: no valid stream URL');
                 }
             } catch (invErr) {
-                console.error('Layer 5 (Invidious) failed:', invErr.message);
+                layerLog.push('Layer 5 failed: ' + invErr.message);
             }
         }
 
@@ -125,6 +131,7 @@ function createDownloadRouter(projectRoot) {
         setTimeout(() => deleteProgress(downloadId), 5000).unref();
 
         console.error('All extraction layers failed for URL:', url);
+        console.error('Layer log:', layerLog.join(' | '));
 
         if (!res.headersSent) {
             res.status(400).setHeader('Content-Type', 'application/json');
