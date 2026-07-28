@@ -1,4 +1,5 @@
 process.env.YTDL_NO_UPDATE = 'true';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const express = require('express');
 const cors = require('cors');
@@ -104,18 +105,8 @@ try {
 
 let binaryAvailabilityCache = null;
 function isBinaryAvailable() {
-    if (binaryAvailabilityCache === true) return true;
-
     const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
     const tmpPath = path.join(os.tmpdir(), targetName);
-
-    if (typeof ytDlpPath === 'string' && fs.existsSync(ytDlpPath)) {
-        if (!isWin) {
-            try { fs.chmodSync(ytDlpPath, '755'); } catch (e) {}
-        }
-        binaryAvailabilityCache = true;
-        return true;
-    }
 
     if (fs.existsSync(tmpPath)) {
         try {
@@ -125,26 +116,32 @@ function isBinaryAvailable() {
                     try { fs.chmodSync(tmpPath, '755'); } catch (e) {}
                 }
                 ytDlpPath = tmpPath;
-                binaryAvailabilityCache = true;
                 return true;
             }
         } catch (e) {}
     }
 
-    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
-        ytDlpPath = process.env.YTDLP_PATH;
-        binaryAvailabilityCache = true;
-        return true;
+    const localBinary = path.join(__dirname, targetName);
+    if (fs.existsSync(localBinary)) {
+        try {
+            if (!isWin) {
+                try { fs.chmodSync(localBinary, '755'); } catch (e) {}
+            }
+            ytDlpPath = localBinary;
+            return true;
+        } catch (chmodErr) {
+            try {
+                fs.copyFileSync(localBinary, tmpPath);
+                if (!isWin) fs.chmodSync(tmpPath, '755');
+                ytDlpPath = tmpPath;
+                return true;
+            } catch (copyErr) {}
+        }
     }
 
-    if (ytDlpPath === 'yt-dlp' || (typeof ytDlpPath === 'string' && ytDlpPath.endsWith('yt-dlp'))) {
-        try {
-            const whichCmd = isWin ? 'where yt-dlp' : 'which yt-dlp';
-            const { execSync } = require('child_process');
-            execSync(whichCmd, { stdio: 'ignore' });
-            binaryAvailabilityCache = true;
-            return true;
-        } catch (e) {}
+    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+        ytDlpPath = process.env.YTDLP_PATH;
+        return true;
     }
 
     return false;
@@ -244,7 +241,17 @@ function downloadBinaryIfNeeded() {
                 isDownloadingBinary = false;
                 return resolve(null);
             }
-            https.get(url, (res) => {
+            const parsedUrl = new URL(url);
+            const reqOpts = {
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || 443,
+                path: parsedUrl.pathname + parsedUrl.search,
+                rejectUnauthorized: false,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                }
+            };
+            https.get(reqOpts, (res) => {
                 if ([301, 302, 307, 308].includes(res.statusCode)) {
                     if (res.headers.location) {
                         return fetchFile(res.headers.location, dest, attempts + 1);
@@ -555,7 +562,12 @@ app.post(['/analyze', '/api/analyze'], rateLimiter, async (req, res) => {
             return res.status(200).json(fallbackResult);
         }
 
-        const args = ['--no-playlist', '--no-check-certificate', '--dump-json', '--js-runtimes', 'node'];
+        const args = [
+            '--no-playlist',
+            '--no-check-certificate',
+            '--extractor-args', 'youtube:player_client=ios,android,mweb',
+            '--dump-json'
+        ];
         const cookiesFile = getCookiesPath();
         if (cookiesFile && fs.existsSync(cookiesFile)) {
             args.push('--cookies', cookiesFile);
@@ -809,6 +821,7 @@ async function getCobaltDirectStream(videoUrl) {
 
 async function getPipedDirectStreamUrl(videoId) {
     const pipedInstances = [
+        `https://api.piped.privacydev.net/streams/${videoId}`,
         `https://pipedapi.kavin.rocks/streams/${videoId}`,
         `https://pipedapi.drgns.space/streams/${videoId}`
     ];
@@ -829,6 +842,8 @@ async function getPipedDirectStreamUrl(videoId) {
 
 async function getInvidiousDirectStreamUrl(videoId) {
     const instances = [
+        `https://inv.tux.pizza/api/v1/videos/${videoId}`,
+        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
         `https://invidious.drgns.space/api/v1/videos/${videoId}`,
         `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`
     ];
@@ -872,7 +887,11 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
     const videoId = extractYouTubeId(url);
 
     // Layer 1: Executable Binary Extractor (yt-dlp)
-    const hasBinary = isBinaryAvailable();
+    let hasBinary = isBinaryAvailable();
+    if (!hasBinary) {
+        await downloadBinaryIfNeeded();
+        hasBinary = isBinaryAvailable();
+    }
 
     if (hasBinary) {
         const extractArgs = [
@@ -880,7 +899,7 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-warnings',
             '--ignore-errors',
             '--no-check-certificate',
-            '--js-runtimes', 'node',
+            '--extractor-args', 'youtube:player_client=ios,android,mweb',
             '-g',
             '--get-title',
             '-f', '18/22/b/best[ext=mp4]/best/bestvideo+bestaudio'
