@@ -119,6 +119,12 @@ describe('Tanzeel Server Security, API & Unit Tests', () => {
             expect(res.statusCode).toBe(400);
             expect(res.body.success).toBe(false);
         });
+
+        it('should successfully extract stream for valid YouTube URL', async () => {
+            const res = await request(app).get('/download?url=https%3A%2F%2Fyoutu.be%2FlYOREZ5TcHU%3Fsi%3DaBGg_ZGPUzlofccB&id=test_stream');
+            expect(res.statusCode).toBe(200);
+            expect(res.headers['content-type']).toMatch(/video\/mp4|application\/octet-stream/);
+        }, 30000);
     });
 
     describe('Route Aliases & Progress Tracking', () => {
