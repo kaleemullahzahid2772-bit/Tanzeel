@@ -33,6 +33,8 @@ describe('Tanzeel Server Security, API & Unit Tests', () => {
             expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
             expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
             expect(res.headers['x-powered-by']).toBeUndefined();
+            expect(res.headers['content-security-policy']).toContain('https://fonts.googleapis.com');
+            expect(res.headers['content-security-policy']).toContain('https://fonts.gstatic.com');
         });
     });
 
