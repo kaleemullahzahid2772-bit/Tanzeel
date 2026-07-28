@@ -123,19 +123,22 @@ function isBinaryAvailable() {
 
     const localBinary = path.join(__dirname, targetName);
     if (fs.existsSync(localBinary)) {
-        try {
-            if (!isWin) {
-                try { fs.chmodSync(localBinary, '755'); } catch (e) {}
+        if (!isWin) {
+            try {
+                fs.chmodSync(localBinary, '755');
+                ytDlpPath = localBinary;
+                return true;
+            } catch (chmodErr) {
+                try {
+                    fs.copyFileSync(localBinary, tmpPath);
+                    fs.chmodSync(tmpPath, '755');
+                    ytDlpPath = tmpPath;
+                    return true;
+                } catch (copyErr) {}
             }
+        } else {
             ytDlpPath = localBinary;
             return true;
-        } catch (chmodErr) {
-            try {
-                fs.copyFileSync(localBinary, tmpPath);
-                if (!isWin) fs.chmodSync(tmpPath, '755');
-                ytDlpPath = tmpPath;
-                return true;
-            } catch (copyErr) {}
         }
     }
 
