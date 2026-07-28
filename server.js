@@ -579,7 +579,7 @@ app.post(['/analyze', '/api/analyze'], rateLimiter, async (req, res) => {
         const args = [
             '--no-playlist',
             '--no-check-certificate',
-            '--extractor-args', 'youtube:player_client=tv_embedded,android',
+            '--extractor-args', 'youtube:player_client=tv_embedded;player_skip=web,mweb,ios,android',
             '--dump-json'
         ];
         const cookiesFile = getCookiesPath();
@@ -923,7 +923,7 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-warnings',
             '--ignore-errors',
             '--no-check-certificate',
-            '--extractor-args', 'youtube:player_client=tv_embedded,android',
+            '--extractor-args', 'youtube:player_client=tv_embedded;player_skip=web,mweb,ios,android',
             '-g',
             '--get-title',
             '-f', '18/22/b/best[ext=mp4]/best'
