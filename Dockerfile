@@ -15,9 +15,10 @@ RUN apk add --no-cache \
     ffmpeg \
     curl \
     ca-certificates \
-    && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    && curl -L --retry 3 --retry-delay 5 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
        -o /usr/local/bin/yt-dlp \
-    && chmod a+rx /usr/local/bin/yt-dlp
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    && /usr/local/bin/yt-dlp --version
 
 # Non-root user for security
 RUN addgroup -S tanzeel && adduser -S tanzeel -G tanzeel

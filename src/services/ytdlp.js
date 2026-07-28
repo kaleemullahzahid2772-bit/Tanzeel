@@ -40,6 +40,11 @@ function getBinaryPath() {
 }
 
 function isBinaryAvailable(projectRoot) {
+    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+        ytDlpPath = process.env.YTDLP_PATH;
+        return true;
+    }
+
     const isWin = process.platform === 'win32';
     const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
     const tmpPath = path.join(os.tmpdir(), targetName);
@@ -76,11 +81,6 @@ function isBinaryAvailable(projectRoot) {
             ytDlpPath = localBinary;
             return true;
         }
-    }
-
-    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
-        ytDlpPath = process.env.YTDLP_PATH;
-        return true;
     }
 
     return false;
@@ -225,9 +225,13 @@ async function getYtdlCoreStreamUrl(videoUrl, projectRoot) {
 
         const info = await ytdlCore.getInfo(videoUrl, options);
         if (info && info.formats && info.formats.length > 0) {
-            const format = (typeof ytdlCore.chooseFormat === 'function' ? ytdlCore.chooseFormat(info.formats, { filter: 'audioandvideo' }) : null) ||
-                           info.formats.find(f => f.hasVideo && f.hasAudio && f.url) ||
-                           info.formats.find(f => f.hasVideo && f.url);
+            let format = null;
+            try {
+                format = ytdlCore.chooseFormat(info.formats, { filter: 'audioandvideo' });
+            } catch(e) {
+                format = info.formats.find(f => f.hasVideo && f.hasAudio && f.url) ||
+                         info.formats.find(f => f.hasVideo && f.url);
+            }
             if (format && format.url) {
                 return {
                     url: format.url,
@@ -235,7 +239,9 @@ async function getYtdlCoreStreamUrl(videoUrl, projectRoot) {
                 };
             }
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('getYtdlCoreStreamUrl error:', e.message);
+    }
     return null;
 }
 
@@ -277,6 +283,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
 
                 if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                     videoRes.resume();
+                    console.error('proxyVideoStream: upstream returned', videoRes.statusCode, 'for', streamUrl.substring(0, 80));
                     return resolve(false);
                 }
 
@@ -339,10 +346,13 @@ async function extractWithBinary(url, projectRoot, ffmpegPath) {
         '--no-playlist',
         '--no-warnings',
         '--ignore-errors',
-        '--extractor-args', 'youtube:player_client=tv_embedded;player_skip=web,mweb,ios,android',
+        '--extractor-retries', 'infinite',
+        '--allow-unplayable-formats',
+        '--throttled-rate', '100K',
+        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
         '-g',
         '--get-title',
-        '-f', '18/22/b/best[ext=mp4]/best'
+        '-f', 'best[ext=mp4][vcodec!*=av01][filesize_approx<2G]/best[ext=mp4]/best'
     ];
     if (ffmpegPath) {
         try {
@@ -358,7 +368,10 @@ async function extractWithBinary(url, projectRoot, ffmpegPath) {
 
     return new Promise((resolve) => {
         execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (!stdout || !stdout.trim()) return resolve(null);
+            if (!stdout || !stdout.trim()) {
+                if (stderr) console.error('extractWithBinary stderr:', stderr.slice(0, 500));
+                return resolve(null);
+            }
             const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
             const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
             const httpLines = lines.filter(l => l.startsWith('http'));
@@ -366,6 +379,7 @@ async function extractWithBinary(url, projectRoot, ffmpegPath) {
             if (progressive && isValidPublicUrl(progressive)) {
                 return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
             }
+            console.error('extractWithBinary: no valid stream URL in output');
             resolve(null);
         });
     });
@@ -374,7 +388,8 @@ async function extractWithBinary(url, projectRoot, ffmpegPath) {
 async function extractWithAnalyze(url, projectRoot) {
     const args = [
         '--no-playlist',
-        '--extractor-args', 'youtube:player_client=tv_embedded;player_skip=web,mweb,ios,android',
+        '--extractor-retries', 'infinite',
+        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
         '--dump-json'
     ];
     const cookiesFile = getCookiesPath(projectRoot);
