@@ -893,6 +893,61 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
         hasBinary = isBinaryAvailable();
     }
 
+    if (req.query.debug === '1') {
+        const diag = {
+            platform: process.platform,
+            arch: process.arch,
+            dirname: __dirname,
+            tmpdir: os.tmpdir(),
+            ytDlpPath: ytDlpPath,
+            tmpBinaryExists: fs.existsSync(path.join(os.tmpdir(), isWin ? 'yt-dlp.exe' : 'yt-dlp')),
+            localBinaryExists: fs.existsSync(path.join(__dirname, isWin ? 'downloader.exe' : 'yt-dlp')),
+            hasBinary: hasBinary,
+            execVersion: null,
+            extractOutput: null,
+            ytdlError: null,
+            pipedResult: null,
+            invidiousResult: null
+        };
+
+        if (hasBinary) {
+            try {
+                diag.execVersion = await new Promise((resolve) => {
+                    execFile(ytDlpPath, ['--version'], { timeout: 5000 }, (err, stdout, stderr) => {
+                        resolve({ err: err ? err.message : null, stdout: stdout ? stdout.trim() : null, stderr: stderr ? stderr.trim() : null });
+                    });
+                });
+            } catch (e) { diag.execVersion = { error: e.message }; }
+
+            try {
+                const testArgs = [
+                    '--no-playlist', '--no-warnings', '--ignore-errors', '--no-check-certificate',
+                    '--extractor-args', 'youtube:player_client=ios,android,mweb',
+                    '-g', '--get-title', '-f', '18/22/b/best[ext=mp4]/best/bestvideo+bestaudio', url
+                ];
+                diag.extractOutput = await new Promise((resolve) => {
+                    execFile(ytDlpPath, testArgs, { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
+                        resolve({ err: err ? err.message : null, stdout: stdout ? stdout.trim() : null, stderr: stderr ? stderr.trim() : null });
+                    });
+                });
+            } catch (e) { diag.extractOutput = { error: e.message }; }
+        }
+
+        try {
+            const ytdlRes = await getYtdlCoreStreamUrl(url);
+            diag.ytdlResult = ytdlRes;
+        } catch (e) { diag.ytdlError = e.message; }
+
+        try {
+            if (videoId) {
+                diag.pipedResult = await getPipedDirectStreamUrl(videoId);
+                diag.invidiousResult = await getInvidiousDirectStreamUrl(videoId);
+            }
+        } catch(e) {}
+
+        return res.status(200).json(diag);
+    }
+
     if (hasBinary) {
         const extractArgs = [
             '--no-playlist',
