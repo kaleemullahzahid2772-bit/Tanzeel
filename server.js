@@ -462,6 +462,7 @@ function httpsGetJson(url, timeoutMs = 5000) {
                 hostname: parsed.hostname,
                 port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
                 path: parsed.pathname + parsed.search,
+                rejectUnauthorized: false,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'application/json'
@@ -539,7 +540,7 @@ app.post(['/analyze', '/api/analyze'], rateLimiter, async (req, res) => {
             return res.status(200).json(fallbackResult);
         }
 
-        const args = ['--no-playlist', '--dump-json', '--js-runtimes', 'node'];
+        const args = ['--no-playlist', '--no-check-certificate', '--dump-json', '--js-runtimes', 'node'];
         const cookiesFile = getCookiesPath();
         if (cookiesFile && fs.existsSync(cookiesFile)) {
             args.push('--cookies', cookiesFile);
@@ -654,6 +655,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, redirectCount =
                 hostname: parsedUrl.hostname,
                 port: parsedUrl.port || (parsedUrl.protocol === 'http:' ? 80 : 443),
                 path: parsedUrl.pathname + parsedUrl.search,
+                rejectUnauthorized: false,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': '*/*',
@@ -749,6 +751,7 @@ async function getCobaltDirectStream(videoUrl) {
                 port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
                 path: parsed.pathname,
                 method: 'POST',
+                rejectUnauthorized: false,
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
@@ -861,6 +864,7 @@ app.get(['/download', '/api/download'], rateLimiter, async (req, res) => {
             '--no-playlist',
             '--no-warnings',
             '--ignore-errors',
+            '--no-check-certificate',
             '-g',
             '--get-title',
             '-f', '18/22/b/best[ext=mp4]/best'
