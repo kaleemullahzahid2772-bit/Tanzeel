@@ -8,6 +8,7 @@ const { getCookiesPath } = require('../utils/cookies');
 const { isValidPublicUrl } = require('../utils/validate');
 const { setProgress, deleteProgress } = require('../utils/progress');
 const { sanitizeFilename, setContentDispositionHeader } = require('../utils/filename');
+const log = require('../utils/logger');
 
 let ytDlpPath = null;
 let ytdlCore = null;
@@ -123,7 +124,7 @@ function downloadBinaryIfNeeded(projectRoot) {
             } catch (e) {}
         }
 
-        console.log('yt-dlp binary missing on server. Auto-downloading standalone binary to:', tmpPath);
+        log.info(`yt-dlp binary missing on server. Auto-downloading standalone binary to: ${tmpPath}`);
         const downloadUrl = isWin
             ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
             : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
@@ -187,73 +188,98 @@ function downloadBinaryIfNeeded(projectRoot) {
 
 async function getYtdlCoreStreamUrl(videoUrl, projectRoot) {
     if (!ytdlCore) return null;
-    try {
-        let options = {
-            requestOptions: {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    return new Promise(async (resolve) => {
+        let isDone = false;
+        const timer = setTimeout(() => {
+            if (!isDone) {
+                isDone = true;
+                log.warn('ytdl-core getInfo timed out after 10000ms');
+                resolve(null);
+            }
+        }, 10000);
+
+        try {
+            let options = {
+                requestOptions: {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                }
+            };
+
+            const cookiesFile = getCookiesPath(projectRoot);
+            if (cookiesFile && fs.existsSync(cookiesFile)) {
+                try {
+                    const cookieContent = fs.readFileSync(cookiesFile, 'utf-8');
+                    const lines = cookieContent.split('\n');
+                    const parsedCookies = lines.map(line => {
+                        if (!line || line.startsWith('#')) return null;
+                        const parts = line.split('\t');
+                        if (parts.length < 7) return null;
+                        const domain = parts[0];
+                        if (!domain.includes('youtube.com')) return null;
+                        return {
+                            domain,
+                            expirationDate: parseInt(parts[4]),
+                            path: parts[2],
+                            secure: parts[3] === 'TRUE',
+                            value: parts[6].trim(),
+                            name: parts[5].trim()
+                        };
+                    }).filter(Boolean);
+
+                    if (parsedCookies.length > 0 && typeof ytdlCore.createAgent === 'function') {
+                        options.agent = ytdlCore.createAgent(parsedCookies);
+                    }
+                } catch (cookieErr) {}
+            }
+
+            const info = await ytdlCore.getInfo(videoUrl, options);
+            if (!isDone && info && info.formats && info.formats.length > 0) {
+                let format = null;
+                try {
+                    format = ytdlCore.chooseFormat(info.formats, { filter: 'audioandvideo' });
+                } catch(e) {
+                    format = info.formats.find(f => f.hasVideo && f.hasAudio && f.url) ||
+                             info.formats.find(f => f.hasVideo && f.url);
+                }
+                if (format && format.url) {
+                    isDone = true;
+                    clearTimeout(timer);
+                    return resolve({
+                        url: format.url,
+                        title: (info.videoDetails && info.videoDetails.title) ? info.videoDetails.title : 'Tanzeel_Video'
+                    });
                 }
             }
-        };
-
-        const cookiesFile = getCookiesPath(projectRoot);
-        if (cookiesFile && fs.existsSync(cookiesFile)) {
-            try {
-                const cookieContent = fs.readFileSync(cookiesFile, 'utf-8');
-                const lines = cookieContent.split('\n');
-                const parsedCookies = lines.map(line => {
-                    if (!line || line.startsWith('#')) return null;
-                    const parts = line.split('\t');
-                    if (parts.length < 7) return null;
-                    const domain = parts[0];
-                    if (!domain.includes('youtube.com')) return null;
-                    return {
-                        domain,
-                        expirationDate: parseInt(parts[4]),
-                        path: parts[2],
-                        secure: parts[3] === 'TRUE',
-                        value: parts[6].trim(),
-                        name: parts[5].trim()
-                    };
-                }).filter(Boolean);
-
-                if (parsedCookies.length > 0 && typeof ytdlCore.createAgent === 'function') {
-                    options.agent = ytdlCore.createAgent(parsedCookies);
-                }
-            } catch (cookieErr) {}
+        } catch (e) {
+            log.warn('getYtdlCoreStreamUrl error:', { error: e.message });
         }
-
-        const info = await ytdlCore.getInfo(videoUrl, options);
-        if (info && info.formats && info.formats.length > 0) {
-            let format = null;
-            try {
-                format = ytdlCore.chooseFormat(info.formats, { filter: 'audioandvideo' });
-            } catch(e) {
-                format = info.formats.find(f => f.hasVideo && f.hasAudio && f.url) ||
-                         info.formats.find(f => f.hasVideo && f.url);
-            }
-            if (format && format.url) {
-                return {
-                    url: format.url,
-                    title: (info.videoDetails && info.videoDetails.title) ? info.videoDetails.title : 'Tanzeel_Video'
-                };
-            }
+        if (!isDone) {
+            isDone = true;
+            clearTimeout(timer);
+            resolve(null);
         }
-    } catch (e) {
-        console.error('getYtdlCoreStreamUrl error:', e.message);
-    }
-    return null;
+    });
 }
 
-function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, redirectCount = 0) {
+function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, redirectCount = 0, req = null, allowInsecureSsl = false) {
     const http = require('http');
     return new Promise((resolve) => {
         if (!isValidPublicUrl(streamUrl)) {
+            log.warn('proxyVideoStream rejected non-public stream URL');
             return resolve(false);
         }
         if (redirectCount > 5) {
+            log.warn('proxyVideoStream reached max redirects limit');
             return resolve(false);
         }
+
+        if (req && req.destroyed) {
+            log.info('proxyVideoStream aborted because client request is destroyed');
+            return resolve(false);
+        }
+
         try {
             const parsedUrl = new URL(streamUrl);
             const httpLib = parsedUrl.protocol === 'http:' ? http : https;
@@ -272,41 +298,78 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
                 headers: headers
             };
 
-            const clientReq = httpLib.get(options, (videoRes) => {
+            if (parsedUrl.protocol === 'https:' && allowInsecureSsl) {
+                options.agent = new https.Agent({ rejectUnauthorized: false });
+            }
+
+            log.info(`proxyVideoStream connecting to upstream: ${parsedUrl.hostname}`, { allowInsecureSsl });
+
+            let clientReq = null;
+            let isCleanedUp = false;
+
+            const cleanup = () => {
+                if (isCleanedUp) return;
+                isCleanedUp = true;
+                if (clientReq) {
+                    try { clientReq.destroy(); } catch (e) {}
+                }
+            };
+
+            if (req) {
+                req.once('close', () => {
+                    log.info('Client disconnected during stream proxying');
+                    if (downloadId) setProgress(downloadId, { percent: 0, status: 'Cancelled', message: 'The download was cancelled.' });
+                    cleanup();
+                });
+            }
+
+            clientReq = httpLib.get(options, (videoRes) => {
+                log.info(`Upstream status: ${videoRes.statusCode}`, { downloadId });
+
                 if ([301, 302, 307, 308].includes(videoRes.statusCode)) {
                     const redirectUrl = videoRes.headers.location;
                     if (redirectUrl) {
                         videoRes.resume();
-                        return resolve(proxyVideoStream(redirectUrl, safeTitle, res, downloadId, ffmpegPath, redirectCount + 1));
+                        return resolve(proxyVideoStream(redirectUrl, safeTitle, res, downloadId, ffmpegPath, redirectCount + 1, req, allowInsecureSsl));
                     }
                 }
 
                 if (videoRes.statusCode !== 200 && videoRes.statusCode !== 206) {
                     videoRes.resume();
-                    console.error('proxyVideoStream: upstream returned', videoRes.statusCode, 'for', streamUrl.substring(0, 80));
+                    log.warn(`proxyVideoStream: upstream returned HTTP ${videoRes.statusCode}`);
                     return resolve(false);
                 }
 
-                const upstreamType = (videoRes.headers['content-type'] || 'video/mp4').toLowerCase();
+                const upstreamType = (videoRes.headers['content-type'] || '').toLowerCase();
+                log.info(`Upstream Content-Type: ${upstreamType}`, {
+                    contentLength: videoRes.headers['content-length'] || 'unknown'
+                });
+
                 const isMedia = upstreamType.includes('video') ||
                                 upstreamType.includes('audio') ||
                                 upstreamType.includes('octet-stream') ||
                                 upstreamType.includes('media');
                 const isHtmlOrText = upstreamType.includes('text/html') ||
                                      upstreamType.includes('application/json') ||
-                                     upstreamType.includes('text/plain');
+                                     upstreamType.includes('text/plain') ||
+                                     upstreamType.includes('application/xml');
 
-                if (!isMedia || isHtmlOrText) {
+                if ((!isMedia && upstreamType.length > 0) || isHtmlOrText) {
                     videoRes.resume();
+                    log.warn('proxyVideoStream rejected non-media response content type');
                     return resolve(false);
                 }
 
                 let ext = 'mp4';
                 if (upstreamType.includes('webm')) ext = 'webm';
-                if (upstreamType.includes('mkv')) ext = 'mkv';
+                else if (upstreamType.includes('mkv')) ext = 'mkv';
+                else if (upstreamType.includes('mpeg') || upstreamType.includes('mp3')) ext = 'mp3';
+                else if (upstreamType.includes('aac') || upstreamType.includes('m4a')) ext = 'm4a';
+
+                const responseType = upstreamType || 'video/mp4';
 
                 res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-                res.setHeader('Content-Type', upstreamType);
+                res.setHeader('Content-Type', responseType);
                 setContentDispositionHeader(res, safeTitle, ext);
 
                 if (videoRes.headers['content-length']) {
@@ -319,76 +382,117 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
                 }
 
                 res.on('close', () => {
-                    clientReq.destroy();
+                    cleanup();
+                });
+
+                videoRes.on('error', (vErr) => {
+                    log.error('Upstream video response stream error:', { error: vErr.message });
+                    cleanup();
                 });
 
                 videoRes.pipe(res);
+                log.info('Video stream piping started to client response');
                 return resolve(true);
             });
 
-            clientReq.on('error', () => resolve(false));
+            clientReq.on('error', async (err) => {
+                log.error('proxyVideoStream clientReq error:', { error: err.message });
+                cleanup();
+                if (!allowInsecureSsl && (err.message.includes('certificate') || err.message.includes('CERT_'))) {
+                    log.warn('Retrying proxyVideoStream with SSL fallback...');
+                    const fallbackRes = await proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, redirectCount, req, true);
+                    return resolve(fallbackRes);
+                }
+                resolve(false);
+            });
 
             clientReq.setTimeout(15000, () => {
-                clientReq.destroy();
+                log.warn('proxyVideoStream request socket timed out after 15000ms');
+                cleanup();
                 return resolve(false);
             });
         } catch (err) {
+            log.error('proxyVideoStream exception:', { error: err.message });
             return resolve(false);
         }
     });
 }
 
-async function extractWithBinary(url, projectRoot, ffmpegPath) {
-    const isWin = process.platform === 'win32';
-    const { execFile } = require('child_process');
+async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
+    const buildArgs = (noCert = false) => {
+        const extractArgs = [
+            '--no-playlist',
+            '--no-warnings',
+            '--ignore-errors',
+            '--extractor-retries', '2',
+            '--socket-timeout', '10',
+            '--allow-unplayable-formats',
+            '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
+            '-g',
+            '--get-title',
+            '-f', 'best[ext=mp4][vcodec!*=av01][filesize_approx<2G]/best[ext=mp4]/best'
+        ];
+        if (noCert) {
+            extractArgs.push('--no-check-certificate');
+        }
+        if (ffmpegPath) {
+            try {
+                const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+                extractArgs.push('--ffmpeg-location', ffmpegDir);
+            } catch (e) {}
+        }
+        const cookiesFile = getCookiesPath(projectRoot);
+        if (cookiesFile && fs.existsSync(cookiesFile)) {
+            extractArgs.push('--cookies', cookiesFile);
+        }
+        extractArgs.push(url);
+        return extractArgs;
+    };
 
-    const extractArgs = [
-        '--no-playlist',
-        '--no-warnings',
-        '--ignore-errors',
-        '--extractor-retries', 'infinite',
-        '--allow-unplayable-formats',
-        '--throttled-rate', '100K',
-        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
-        '-g',
-        '--get-title',
-        '-f', 'best[ext=mp4][vcodec!*=av01][filesize_approx<2G]/best[ext=mp4]/best'
-    ];
-    if (ffmpegPath) {
-        try {
-            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
-            extractArgs.push('--ffmpeg-location', ffmpegDir);
-        } catch (e) {}
-    }
-    const cookiesFile = getCookiesPath(projectRoot);
-    if (cookiesFile && fs.existsSync(cookiesFile)) {
-        extractArgs.push('--cookies', cookiesFile);
-    }
-    extractArgs.push(url);
+    const runExtraction = (noCert = false) => {
+        return new Promise((resolve) => {
+            log.info('Starting yt-dlp binary extraction', { url: url.substring(0, 60), noCert });
 
-    return new Promise((resolve) => {
-        execFile(ytDlpPath, extractArgs, { timeout: 30000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (!stdout || !stdout.trim()) {
-                if (stderr) console.error('extractWithBinary stderr:', stderr.slice(0, 500));
-                return resolve(null);
+            const proc = execFile(ytDlpPath, buildArgs(noCert), { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, async (error, stdout, stderr) => {
+                if (stderr && stderr.includes('CERTIFICATE_VERIFY_FAILED') && !noCert) {
+                    log.warn('SSL certificate verify failed in yt-dlp. Retrying with SSL fallback...');
+                    const fallbackResult = await runExtraction(true);
+                    return resolve(fallbackResult);
+                }
+
+                if (error) {
+                    log.warn('extractWithBinary execFile finished with error', { error: error.message });
+                }
+                if (!stdout || !stdout.trim()) {
+                    if (stderr) log.warn('extractWithBinary stderr snippet:', { stderr: stderr.slice(0, 300) });
+                    return resolve(null);
+                }
+                const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
+                const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
+                const httpLines = lines.filter(l => l.startsWith('http'));
+                const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
+                if (progressive && isValidPublicUrl(progressive)) {
+                    log.info('extractWithBinary successfully extracted stream URL');
+                    return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
+                }
+                log.warn('extractWithBinary: no valid stream URL found in output');
+                resolve(null);
+            });
+
+            if (options.onSpawn && typeof options.onSpawn === 'function') {
+                options.onSpawn(proc);
             }
-            const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
-            const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
-            const httpLines = lines.filter(l => l.startsWith('http'));
-            const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
-            if (progressive && isValidPublicUrl(progressive)) {
-                return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
-            }
-            console.error('extractWithBinary: no valid stream URL in output');
-            resolve(null);
         });
-    });
+    };
+
+    return runExtraction(false);
 }
 
 async function extractWithAnalyze(url, projectRoot) {
     const args = [
         '--no-playlist',
-        '--extractor-retries', 'infinite',
+        '--extractor-retries', '2',
+        '--socket-timeout', '10',
         '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
         '--dump-json'
     ];
@@ -399,7 +503,7 @@ async function extractWithAnalyze(url, projectRoot) {
     args.push(url);
 
     return new Promise((resolve) => {
-        execFile(ytDlpPath, args, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        execFile(ytDlpPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
             if (error || !stdout) return resolve(null);
             try {
                 const info = JSON.parse(stdout);
