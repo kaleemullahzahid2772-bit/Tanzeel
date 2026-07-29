@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tanzeel-api
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: YTDLP_PATH
+        value: /opt/render/project/src/yt-dlp
+      - key: YTDL_NO_UPDATE
+        value: "true"

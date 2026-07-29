@@ -45,6 +45,15 @@ function getBinaryPath() {
     return ytDlpPath;
 }
 
+function getFfmpegPath() {
+    try {
+        const ffmpeg = require('ffmpeg-static');
+        return ffmpeg || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 function isBinaryAvailable(projectRoot) {
     const isWin = process.platform === 'win32';
     const MIN_SIZE = isWin ? 5000000 : 1000000; // 5MB for Windows, 1MB for Linux
@@ -457,7 +466,7 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
         return new Promise((resolve) => {
             log.info('Starting yt-dlp binary extraction', { url: url.substring(0, 60), noCert });
 
-            const proc = execFile(ytDlpPath, buildArgs(noCert), { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, async (error, stdout, stderr) => {
+            const proc = execFile(ytDlpPath, buildArgs(noCert), { timeout: 30000, maxBuffer: 1024 * 1024 * 5 }, async (error, stdout, stderr) => {
                 if (stderr && stderr.includes('CERTIFICATE_VERIFY_FAILED') && !noCert) {
                     log.warn('SSL certificate verify failed in yt-dlp. Retrying with SSL fallback...');
                     const fallbackResult = await runExtraction(true);
@@ -510,7 +519,7 @@ async function extractWithAnalyze(url, projectRoot) {
     args.push(url);
 
     return new Promise((resolve) => {
-        execFile(ytDlpPath, args, { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
+        execFile(ytDlpPath, args, { timeout: 30000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
             if (error || !stdout) return resolve(null);
             try {
                 const info = JSON.parse(stdout);
@@ -530,6 +539,7 @@ async function extractWithAnalyze(url, projectRoot) {
 module.exports = {
     init,
     getBinaryPath,
+    getFfmpegPath,
     isBinaryAvailable,
     downloadBinaryIfNeeded,
     getYtdlCoreStreamUrl,

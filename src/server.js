@@ -39,6 +39,7 @@ const PORT = process.env.PORT || 3000;
 // CORS
 const allowedOrigins = [
     'https://tanzeel.vercel.app',
+    'https://tanzeel.pro',
     'https://tanzeel.onrender.com',
     'http://localhost:3000',
     'http://localhost:5173'

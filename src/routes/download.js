@@ -63,13 +63,13 @@ function createDownloadRouter(projectRoot) {
         const videoId = extractYouTubeId(url);
         const ffmpegPath = ytdlp.getFfmpegPath && ytdlp.getFfmpegPath();
 
-        // Overall Download Timeout Guard (35 seconds)
+        // Overall Download Timeout Guard (120 seconds for Render)
         let isTimedOut = false;
         const requestTimeoutTimer = setTimeout(() => {
             if (!res.headersSent && !isAborted) {
                 isTimedOut = true;
                 isAborted = true;
-                log.error(`[Download Request Timeout] Exceeded 35000ms for ID: ${downloadId}`);
+                log.error(`[Download Request Timeout] Exceeded 120000ms for ID: ${downloadId}`);
                 if (spawnedChildProc) {
                     try { spawnedChildProc.kill('SIGKILL'); } catch (e) {}
                 }
@@ -82,7 +82,7 @@ function createDownloadRouter(projectRoot) {
                     layerLog
                 });
             }
-        }, 35000);
+        }, 120000);
 
         try {
             // Layer 1: yt-dlp Binary
