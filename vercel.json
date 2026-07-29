@@ -14,13 +14,15 @@
         }
     ],
     "routes": [
-        { "src": "/sw.js", "dest": "/public/sw.js" },
-        { "src": "/manifest.json", "dest": "/public/manifest.json" },
+        { "src": "/sw.js", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0" }, "dest": "/public/sw.js" },
+        { "src": "/manifest.json", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0" }, "dest": "/public/manifest.json" },
         { "src": "/robots.txt", "dest": "/public/robots.txt" },
         { "src": "/sitemap.xml", "dest": "/public/sitemap.xml" },
         { "src": "/og-image.svg", "dest": "/public/og-image.svg" },
+        { "src": "/logo.png", "dest": "/public/logo.png" },
         { "src": "/logo.jpg", "dest": "/public/logo.jpg" },
         { "src": "/favicon.ico", "dest": "/public/favicon.ico" },
+        { "src": "/icons/(.*)", "dest": "/public/icons/$1" },
         { "handle": "filesystem" },
         { "src": "/(.*)", "dest": "/server.js" }
     ],
