@@ -269,16 +269,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    let activeDownloadController = null;
+    let activePollInterval = null;
+
+    const cancelCurrentDownload = (reasonMessage = null) => {
+        if (activeDownloadController) {
+            try { activeDownloadController.abort(); } catch (e) {}
+            activeDownloadController = null;
+        }
+        if (activePollInterval) {
+            clearInterval(activePollInterval);
+            activePollInterval = null;
+        }
+
+        const cancelDlBtn = document.getElementById('cancel-dl-btn');
+        if (cancelDlBtn) cancelDlBtn.style.display = 'none';
+
+        const fakeProgressText = document.getElementById('fake-progress-text');
+        const progressContainer = document.getElementById('progress-container');
+        const spinner = actionBtn.querySelector('.spinner');
+        const btnIcon = actionBtn.querySelector('.btn-icon');
+
+        actionBtn.classList.remove('downloading');
+        actionBtn.classList.remove('loading');
+        if (progressContainer) progressContainer.style.display = 'none';
+        if (fakeProgressText) fakeProgressText.style.display = 'none';
+        if (spinner) spinner.style.display = 'none';
+        if (btnIcon) btnIcon.style.display = 'block';
+
+        if (reasonMessage) {
+            updateStatus(reasonMessage, "#dc2626");
+        }
+    };
+
+    const cancelDlBtn = document.getElementById('cancel-dl-btn');
+    if (cancelDlBtn) {
+        cancelDlBtn.addEventListener('click', () => {
+            cancelCurrentDownload("The download was cancelled.");
+        });
+    }
+
+    const sanitizeFilenameClient = (title) => {
+        if (!title || typeof title !== 'string') return 'Tanzeel_Video';
+        return title.trim().replace(/[\/\\:\*\?"<>\|\x00-\x1F]/g, '').replace(/\s+/g, '_') || 'Tanzeel_Video';
+    };
+
     const triggerDownload = async (manualText) => {
-        if (actionBtn.classList.contains('downloading')) return; 
-        
-        // Hide results panel until confirmed
+        if (actionBtn.classList.contains('downloading')) {
+            return; 
+        }
+
+        cancelCurrentDownload(null);
+
         if (resultsPanel) resultsPanel.classList.add('hidden');
         if (optionsList) optionsList.innerHTML = '';
 
         updateStatus("Downloading video to device...", "var(--primary)");
         actionBtn.classList.add('downloading');
-        
+
         const fakeProgressText = document.getElementById('fake-progress-text');
         const progressContainer = document.getElementById('progress-container');
         const statPercent = document.getElementById('stat-percent');
@@ -291,77 +339,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const progressBarBg = document.getElementById('progress-bar-bg');
         const spinner = actionBtn.querySelector('.spinner');
         const btnIcon = actionBtn.querySelector('.btn-icon');
-        
+
         if (btnIcon) btnIcon.style.display = 'none';
         fakeProgressText.style.display = 'block';
         fakeProgressText.textContent = '0%';
         progressContainer.style.display = 'none';
+        if (cancelDlBtn) cancelDlBtn.style.display = 'block';
         statPercent.textContent = '0%';
         progressBarBg.style.width = '0%';
         downloadStats.textContent = 'Preparing download...';
-        
-        // Start analysis in the background
+
         const isSuccess = await performAnalysis(manualText);
         if (!isSuccess) {
-            if (btnIcon) btnIcon.style.display = 'block';
-            actionBtn.classList.remove('downloading');
+            cancelCurrentDownload(null);
             shakeInput();
             return;
         }
-        
-        currentUrl = manualText;
 
-        let hasRealProgressStarted = false;
-        let failedPolls = 0;
-        
+        currentUrl = manualText;
+        activeDownloadController = new AbortController();
+        const signal = activeDownloadController.signal;
+
         const downloadId = Math.random().toString(36).substring(2, 10);
         const downloadUrl = getApiUrl(`/download?url=${encodeURIComponent(currentUrl)}&id=${downloadId}`);
 
-        // Trigger browser file download via hidden iframe
-        let iframe = document.getElementById('download-frame');
-        if (!iframe) {
-            iframe = document.createElement('iframe');
-            iframe.id = 'download-frame';
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-        }
-        iframe.src = downloadUrl;
+        let hasRealProgressStarted = false;
 
-        let pollCount = 0;
-        const maxPolls = 60; // 60 seconds max polling duration
-
-        const resetBtnState = (statusText, statusColor, isFailure = false) => {
-            clearInterval(pollInterval);
-            if (statusText) updateStatus(statusText, statusColor || "#059669");
-            actionBtn.classList.remove('downloading');
-            actionBtn.classList.remove('loading');
-            progressContainer.style.display = 'none';
-            fakeProgressText.style.display = 'none';
-            spinner.style.display = 'none';
-            if (btnIcon) btnIcon.style.display = 'block';
-            if (isFailure && resultsPanel) {
-                resultsPanel.classList.add('hidden');
-                if (optionsList) optionsList.innerHTML = '';
+        activePollInterval = setInterval(async () => {
+            if (signal.aborted) {
+                clearInterval(activePollInterval);
+                return;
             }
-        };
-
-        const pollInterval = setInterval(async () => {
             try {
-                pollCount++;
-                const res = await fetch(getApiUrl(`/progress?id=${downloadId}`));
-                if (!res.ok) {
-                    failedPolls++;
-                } else {
+                const res = await fetch(getApiUrl(`/progress?id=${downloadId}`), { signal });
+                if (res.ok) {
                     const data = await res.json();
-                    
-                    if (!data.success) {
-                        failedPolls++;
-                        if (failedPolls >= 10 && !hasRealProgressStarted) {
-                            renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
-                            return resetBtnState("Download dispatched to browser! Check your Downloads folder.", "#059669");
-                        }
-                    } else if (data.success && data.data) {
-                        failedPolls = 0;
+                    if (data.success && data.data) {
                         const info = data.data;
                         if (info.status === 'Downloading...') {
                             if (!hasRealProgressStarted) {
@@ -370,72 +383,112 @@ document.addEventListener('DOMContentLoaded', () => {
                                 spinner.style.display = 'block';
                                 progressContainer.style.display = 'block';
                             }
-                            
                             statPercent.textContent = `${info.percent}%`;
                             progressBarBg.style.width = `${info.percent}%`;
-                            
-                            let totalVal = 0;
-                            let unit = 'MB';
-                            if (info.size && info.size !== '0MiB') {
-                                totalVal = parseFloat(info.size);
-                                unit = info.size.replace(/[\d\.]/g, '');
-                                if (unit.toLowerCase() === 'mib') unit = 'MB';
-                                if (unit.toLowerCase() === 'gib') unit = 'GB';
-                            }
-                            
-                            if (!isNaN(totalVal) && totalVal > 0) {
-                                const downloadedVal = (totalVal * (info.percent / 100)).toFixed(2);
-                                const remainingVal = (totalVal - downloadedVal).toFixed(2);
-                                
-                                statDownloaded.textContent = `${downloadedVal} ${unit}`;
-                                statTotal.textContent = `${totalVal.toFixed(2)} ${unit}`;
-                                statRemaining.textContent = `${remainingVal} ${unit}`;
-                            } else {
-                                statDownloaded.textContent = '--';
-                                statTotal.textContent = info.size || '--';
-                                statRemaining.textContent = '--';
-                            }
-                            
-                            statSpeed.textContent = info.speed.replace('MiB/s', 'MB/s');
-                            statEta.textContent = info.eta;
-                            downloadStats.textContent = `Downloading video...`;
-                            updateStatus("Downloading video to device...", "var(--primary)");
-                        } else if (info.status === 'Complete') {
-                            hasRealProgressStarted = true;
-                            statPercent.textContent = `100%`;
-                            progressBarBg.style.width = `100%`;
-                            downloadStats.textContent = "Download complete!";
-                            renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
-                            updateStatus("Video downloaded successfully! Check your Downloads folder.", "#059669");
-                            
-                            // Increment social proof counter
-                            const c = parseInt(localStorage.getItem('tanzeel_dl_count') || '0', 10) + 1;
-                            localStorage.setItem('tanzeel_dl_count', String(c));
-                            updateDownloadCount();
-                            
-                            setTimeout(() => {
-                                resetBtnState("Video downloaded successfully! Check your Downloads folder.", "#059669");
-                                downloadStats.textContent = '';
-                            }, 3000);
+                            downloadStats.textContent = 'Extracting video stream...';
+                        } else if (info.status === 'Cancelled') {
+                            cancelCurrentDownload("The download was cancelled.");
                         } else if (info.status === 'Failed') {
-                            console.error("Download failed reason:", info.message);
-                            resetBtnState(info.message || "Download failed. Please check your link.", "red", true);
+                            cancelCurrentDownload(info.message || "The source did not provide a downloadable media stream.");
                         }
                     }
                 }
+            } catch (e) {}
+        }, 1000);
 
-                if (pollCount >= maxPolls && !hasRealProgressStarted) {
-                    renderDownloadOptions(lastAnalyzedTitle, downloadUrl);
-                    resetBtnState("Download request finished. Check your Downloads folder.", "#059669");
+        try {
+            const response = await fetch(downloadUrl, { signal });
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+            if (!response.ok || contentType.includes('application/json')) {
+                if (activePollInterval) {
+                    clearInterval(activePollInterval);
+                    activePollInterval = null;
                 }
-            } catch (e) {
-                console.error('Polling error:', e);
-                failedPolls++;
-                if (failedPolls >= 10 && !hasRealProgressStarted) {
-                    resetBtnState("Download dispatched to browser. Check your Downloads folder.", "#059669");
+
+                let errJson = {};
+                try { errJson = await response.json(); } catch (e) {}
+
+                let userMsg = "This source cannot currently be downloaded.";
+                if (response.status === 504 || errJson.error === 'REQUEST_TIMEOUT') {
+                    userMsg = "Download request timed out.";
+                } else if (errJson.error === 'EXTRACTION_FAILED' || response.status === 422) {
+                    userMsg = "The source did not provide a downloadable media stream.";
+                } else if (response.status === 502 || errJson.error === 'INVALID_MEDIA_RESPONSE') {
+                    userMsg = "The server received an invalid media response.";
+                } else if (errJson.message) {
+                    userMsg = errJson.message;
+                }
+
+                cancelCurrentDownload(userMsg);
+                return;
+            }
+
+            if (activePollInterval) {
+                clearInterval(activePollInterval);
+                activePollInterval = null;
+            }
+
+            hasRealProgressStarted = true;
+            fakeProgressText.style.display = 'none';
+            spinner.style.display = 'block';
+            progressContainer.style.display = 'block';
+            downloadStats.textContent = "Finalizing download stream...";
+            statPercent.textContent = "90%";
+            progressBarBg.style.width = "90%";
+
+            const blob = await response.blob();
+            if (!blob || blob.size === 0) {
+                cancelCurrentDownload("The source did not provide a downloadable media stream.");
+                return;
+            }
+
+            const disposition = response.headers.get('content-disposition') || '';
+            let filename = `${sanitizeFilenameClient(lastAnalyzedTitle)}.mp4`;
+            if (disposition.includes('filename=')) {
+                const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+                if (match && match[1]) {
+                    filename = decodeURIComponent(match[1]);
                 }
             }
-        }, 1000);
+
+            const blobUrl = URL.createObjectURL(blob);
+
+            const tempLink = document.createElement('a');
+            tempLink.href = blobUrl;
+            tempLink.download = filename;
+            tempLink.style.display = 'none';
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
+
+            renderDownloadOptions(lastAnalyzedTitle, blobUrl);
+
+            const c = parseInt(localStorage.getItem('tanzeel_dl_count') || '0', 10) + 1;
+            localStorage.setItem('tanzeel_dl_count', String(c));
+            updateDownloadCount();
+
+            statPercent.textContent = "100%";
+            progressBarBg.style.width = "100%";
+            downloadStats.textContent = "Download complete!";
+
+            setTimeout(() => {
+                cancelCurrentDownload(null);
+                updateStatus("Video downloaded successfully! Check your Downloads folder.", "#059669");
+            }, 2500);
+
+        } catch (fetchErr) {
+            if (activePollInterval) {
+                clearInterval(activePollInterval);
+                activePollInterval = null;
+            }
+            if (fetchErr.name === 'AbortError') {
+                cancelCurrentDownload("The download was cancelled.");
+            } else {
+                console.error("Download fetch error:", fetchErr);
+                cancelCurrentDownload("Network connection error during download.");
+            }
+        }
     };
 
     actionBtn.addEventListener('click', (e) => {
