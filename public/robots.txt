@@ -5,6 +5,5 @@ Disallow: /progress
 Disallow: /health
 Disallow: /sw.js
 Disallow: /version.json
-Disallow: /icons/
 
-Sitemap: https://tanzeel.app/sitemap.xml
+Sitemap: https://tanzeel.pro/sitemap.xml

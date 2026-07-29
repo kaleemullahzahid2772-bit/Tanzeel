@@ -65,7 +65,7 @@ app.use(jsonErrorHandler);
 
 // Health check
 app.get(['/health', '/api/health'], (req, res) => {
-    let version = '1.1.0';
+        let version = '1.2.0';
     try {
         const pkg = require(path.join(PROJECT_ROOT, 'package.json'));
         version = pkg.version || version;
