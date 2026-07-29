@@ -6,6 +6,10 @@ const ytdlp = require('../services/ytdlp');
 const { getCobaltDirectStream } = require('../services/cobalt');
 const { getPipedDirectStreamUrl } = require('../services/piped');
 const { getInvidiousDirectStreamUrl } = require('../services/invidious');
+const { getTikTokStreamUrl } = require('../services/tiktok');
+const { getInstagramStreamUrl } = require('../services/instagram');
+const { getTwitterStreamUrl } = require('../services/twitter');
+const { getFacebookStreamUrl } = require('../services/facebook');
 const log = require('../utils/logger');
 
 function createDownloadRouter(projectRoot) {
@@ -118,6 +122,31 @@ function createDownloadRouter(projectRoot) {
                     } catch (binErr) {
                         layerLog.push({ layer: 1, name: 'yt-dlp binary', error: binErr.message });
                         log.warn(`[Layer 1: yt-dlp binary] Exception: ${binErr.message}`);
+                    }
+                }
+            }
+
+            // Dedicated Platform API Layer (TikTok, Instagram, Twitter/X, Facebook)
+            if (!isAborted && !isTimedOut) {
+                let platformStream = null;
+                const lowerUrl = url.toLowerCase();
+                if (lowerUrl.includes('tiktok.com')) {
+                    platformStream = await getTikTokStreamUrl(url);
+                } else if (lowerUrl.includes('instagram.com')) {
+                    platformStream = await getInstagramStreamUrl(url);
+                } else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
+                    platformStream = await getTwitterStreamUrl(url);
+                } else if (lowerUrl.includes('facebook.com') || lowerUrl.includes('fb.watch')) {
+                    platformStream = await getFacebookStreamUrl(url);
+                }
+
+                if (platformStream && platformStream.url && isValidPublicUrl(platformStream.url) && !isAborted) {
+                    log.info(`[Platform API] Extracted stream URL for ID: ${downloadId}`);
+                    const piped = await ytdlp.proxyVideoStream(platformStream.url, sanitizeFilename(platformStream.title), res, downloadId, ffmpegPath, 0, req);
+                    if (piped) {
+                        clearTimeout(requestTimeoutTimer);
+                        log.info(`[Download Success] Platform API layer succeeded in ${Date.now() - startTime}ms for ID: ${downloadId}`);
+                        return;
                     }
                 }
             }
