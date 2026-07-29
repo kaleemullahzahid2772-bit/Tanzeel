@@ -62,7 +62,6 @@ function createDownloadRouter(projectRoot) {
         const videoId = extractYouTubeId(url);
         const ffmpegPath = ytdlp.getFfmpegPath && ytdlp.getFfmpegPath();
 
-<<<<<<< HEAD
         // Overall Download Timeout Guard (35 seconds)
         let isTimedOut = false;
         const requestTimeoutTimer = setTimeout(() => {
@@ -82,34 +81,8 @@ function createDownloadRouter(projectRoot) {
                 });
             }
         }, 35000);
-=======
-        const layerLog = [];
-
-        // Layer 1: yt-dlp Binary (YouTube URLs only - args are YouTube-specific)
-        if (videoId) {
-            if (hasBinary) {
-                try {
-                    const binaryResult = await ytdlp.extractWithBinary(url, projectRoot, ffmpegPath, layerLog);
-                    if (binaryResult && binaryResult.url) {
-                        const piped = await ytdlp.proxyVideoStream(binaryResult.url, sanitizeFilename(binaryResult.title), res, downloadId, ffmpegPath);
-                        if (piped) return;
-                        layerLog.push('Layer 1: proxyVideoStream returned false');
-                    } else {
-                        layerLog.push('Layer 1: no stream URL extracted');
-                    }
-                } catch (binErr) {
-                    layerLog.push('Layer 1 failed: ' + binErr.message);
-                }
-            } else {
-                layerLog.push('Layer 1: binary not available');
-            }
-        } else {
-            layerLog.push('Layer 1: skipped (not a YouTube URL)');
-        }
->>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
 
         try {
-<<<<<<< HEAD
             // Layer 1: yt-dlp Binary
             if (!isAborted && !isTimedOut) {
                 let hasBinary = ytdlp.isBinaryAvailable(projectRoot);
@@ -141,63 +114,6 @@ function createDownloadRouter(projectRoot) {
                         log.warn(`[Layer 1: yt-dlp binary] Exception: ${binErr.message}`);
                     }
                 }
-=======
-            const ytdlResult = await ytdlp.getYtdlCoreStreamUrl(url, projectRoot);
-            if (ytdlResult && ytdlResult.url && isValidPublicUrl(ytdlResult.url)) {
-                const piped = await ytdlp.proxyVideoStream(ytdlResult.url, sanitizeFilename(ytdlResult.title), res, downloadId, ffmpegPath);
-                if (piped) return;
-                layerLog.push('Layer 2: proxyVideoStream returned false');
-            } else {
-                layerLog.push('Layer 2: no valid stream URL' + (ytdlResult ? ' (url=' + (ytdlResult.url || '').substring(0, 50) + ')' : ''));
-            }
-        } catch (ytdlErr) {
-            layerLog.push('Layer 2 failed: ' + ytdlErr.message);
-        }
-
-        // Layer 3: Cobalt API
-        try {
-            const cobaltUrl = await getCobaltDirectStream(url);
-            if (cobaltUrl && isValidPublicUrl(cobaltUrl)) {
-                const piped = await ytdlp.proxyVideoStream(cobaltUrl, 'Tanzeel_Video', res, downloadId, ffmpegPath);
-                if (piped) return;
-                layerLog.push('Layer 3: proxyVideoStream returned false');
-            } else {
-                layerLog.push('Layer 3: no stream URL');
-            }
-        } catch (cobaltErr) {
-            layerLog.push('Layer 3 failed: ' + cobaltErr.message);
-        }
-
-        // Layer 4: Piped API
-        if (videoId) {
-            try {
-                const pipedStream = await getPipedDirectStreamUrl(videoId);
-                if (pipedStream && pipedStream.url && isValidPublicUrl(pipedStream.url)) {
-                    const piped = await ytdlp.proxyVideoStream(pipedStream.url, sanitizeFilename(pipedStream.title), res, downloadId, ffmpegPath);
-                    if (piped) return;
-                    layerLog.push('Layer 4: proxyVideoStream returned false');
-                } else {
-                    layerLog.push('Layer 4: no valid stream URL');
-                }
-            } catch (pipedErr) {
-                layerLog.push('Layer 4 failed: ' + pipedErr.message);
-            }
-        }
-
-        // Layer 5: Invidious API
-        if (videoId) {
-            try {
-                const invidiousStream = await getInvidiousDirectStreamUrl(videoId);
-                if (invidiousStream && invidiousStream.url && isValidPublicUrl(invidiousStream.url)) {
-                    const piped = await ytdlp.proxyVideoStream(invidiousStream.url, sanitizeFilename(invidiousStream.title), res, downloadId, ffmpegPath);
-                    if (piped) return;
-                    layerLog.push('Layer 5: proxyVideoStream returned false');
-                } else {
-                    layerLog.push('Layer 5: no valid stream URL');
-                }
-            } catch (invErr) {
-                layerLog.push('Layer 5 failed: ' + invErr.message);
->>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
             }
 
             // Layer 2: @distube/ytdl-core
@@ -222,7 +138,6 @@ function createDownloadRouter(projectRoot) {
                 }
             }
 
-<<<<<<< HEAD
             // Layer 3: Cobalt API
             if (!isAborted && !isTimedOut) {
                 log.info(`[Layer 3: Cobalt] Extraction started for ID: ${downloadId}`);
@@ -244,10 +159,6 @@ function createDownloadRouter(projectRoot) {
                     log.warn(`[Layer 3: Cobalt] Exception: ${cobaltErr.message}`);
                 }
             }
-=======
-        console.error('All extraction layers failed for URL:', url);
-        console.error('Layer log:', layerLog.join(' | '));
->>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
 
             // Layer 4: Piped API
             if (!isAborted && !isTimedOut && videoId) {
