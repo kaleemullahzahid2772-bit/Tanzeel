@@ -58,10 +58,6 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deployment
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
-        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-
       - name: Deploy to Vercel Action
         if: ${{ secrets.VERCEL_TOKEN != '' }}
         uses: amondnet/vercel-action@v25
