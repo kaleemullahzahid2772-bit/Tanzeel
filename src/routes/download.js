@@ -108,9 +108,12 @@ function createDownloadRouter(projectRoot) {
                                 log.info(`[Download Success] Layer 1 succeeded in ${Date.now() - startTime}ms for ID: ${downloadId}`);
                                 return;
                             }
+                            layerLog.push({ layer: 1, name: 'yt-dlp binary', error: 'proxyVideoStream failed' });
                             log.warn(`[Layer 1: yt-dlp binary] proxyVideoStream failed for ID: ${downloadId}`);
                         } else {
-                            log.warn(`[Layer 1: yt-dlp binary] No stream URL extracted for ID: ${downloadId}`);
+                            const errMsg = (binaryResult && binaryResult.error) ? binaryResult.error : 'No stream URL extracted';
+                            layerLog.push({ layer: 1, name: 'yt-dlp binary', error: errMsg });
+                            log.warn(`[Layer 1: yt-dlp binary] ${errMsg} for ID: ${downloadId}`);
                         }
                     } catch (binErr) {
                         layerLog.push({ layer: 1, name: 'yt-dlp binary', error: binErr.message });

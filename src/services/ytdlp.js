@@ -492,8 +492,9 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
                     log.warn('extractWithBinary execFile finished with error', { error: error.message });
                 }
                 if (!stdout || !stdout.trim()) {
-                    if (stderr) log.warn('extractWithBinary stderr snippet:', { stderr: stderr.slice(0, 300) });
-                    return resolve(null);
+                    const errMsg = stderr ? stderr.slice(0, 500) : 'No output from yt-dlp';
+                    if (stderr) log.warn('extractWithBinary stderr snippet:', { stderr: errMsg });
+                    return resolve({ error: errMsg });
                 }
                 const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
                 const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
@@ -503,8 +504,9 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
                     log.info('extractWithBinary successfully extracted stream URL');
                     return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
                 }
+                const linesStr = stdout.trim().slice(0, 300);
                 log.warn('extractWithBinary: no valid stream URL found in output');
-                resolve(null);
+                resolve({ error: `No valid stream URL in output: ${linesStr}` });
             });
 
             if (options.onSpawn && typeof options.onSpawn === 'function') {
