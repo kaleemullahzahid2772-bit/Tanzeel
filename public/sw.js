@@ -1,6 +1,6 @@
-const CACHE_NAME = 'tanzeel-v1.1.0';
-const STATIC_CACHE = 'tanzeel-static-v1';
-const DYNAMIC_CACHE = 'tanzeel-dynamic-v1';
+const CACHE_NAME = 'tanzeel-v1.2.0';
+const STATIC_CACHE = 'tanzeel-static-v2';
+const DYNAMIC_CACHE = 'tanzeel-dynamic-v2';
 
 const STATIC_ASSETS = [
     '/',
@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
     '/config.js',
     '/manifest.json',
     '/favicon.ico',
+    '/logo.png',
     '/logo.jpg',
     '/version.json'
 ];
