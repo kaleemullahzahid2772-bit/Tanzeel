@@ -8,7 +8,16 @@ function createAnalyzeRouter(projectRoot) {
     const router = express.Router();
 
     async function fallbackAnalyze(url) {
-        if (url && typeof url === 'string' && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+        let platform = 'Video Platform';
+        const lowerUrl = (url || '').toLowerCase();
+        if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) platform = 'YouTube';
+        else if (lowerUrl.includes('tiktok.com')) platform = 'TikTok';
+        else if (lowerUrl.includes('instagram.com')) platform = 'Instagram';
+        else if (lowerUrl.includes('facebook.com') || lowerUrl.includes('fb.watch')) platform = 'Facebook';
+        else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) platform = 'Twitter / X';
+        else if (lowerUrl.includes('pinterest.com')) platform = 'Pinterest';
+
+        if (platform === 'YouTube') {
             const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
             const data = await httpsGetJson(oembedUrl, 3000);
             if (data && data.title) {
@@ -20,10 +29,11 @@ function createAnalyzeRouter(projectRoot) {
                 };
             }
         }
+
         return {
             success: true,
-            platform: 'Video Platform',
-            title: 'Video Stream',
+            platform,
+            title: `${platform} Video`,
             qualities: [{ quality: 'Auto (Best available)' }]
         };
     }
