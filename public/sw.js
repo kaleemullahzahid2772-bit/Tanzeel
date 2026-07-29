@@ -1,6 +1,6 @@
-const CACHE_NAME = 'tanzeel-v1.3.0';
-const STATIC_CACHE = 'tanzeel-static-v3';
-const DYNAMIC_CACHE = 'tanzeel-dynamic-v3';
+const CACHE_NAME = 'tanzeel-v1.4.0';
+const STATIC_CACHE = 'tanzeel-static-v4';
+const DYNAMIC_CACHE = 'tanzeel-dynamic-v4';
 
 const STATIC_ASSETS = [
     '/',
