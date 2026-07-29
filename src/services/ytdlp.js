@@ -39,31 +39,6 @@ function init(projectRoot) {
     try {
         ytdlCore = require('@distube/ytdl-core');
     } catch (e) {}
-
-    // Startup: download fresh yt-dlp binary to tmp so we always use the latest version
-    if (!isWin) {
-        const tmpTarget = path.join(os.tmpdir(), 'yt-dlp');
-        const needsDownload = !fs.existsSync(tmpTarget) || (Date.now() - fs.statSync(tmpTarget).mtimeMs) > 86400000;
-        if (needsDownload) {
-            log.info('Downloading latest yt-dlp binary on startup...');
-            const req = https.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux', (res) => {
-                if (res.statusCode === 200) {
-                    const file = fs.createWriteStream(tmpTarget);
-                    res.pipe(file);
-                    file.on('finish', () => {
-                        file.close(() => {
-                            try { fs.chmodSync(tmpTarget, '755'); } catch (e) {}
-                            if (fs.statSync(tmpTarget).size > 1000000) {
-                                log.info('yt-dlp binary updated to latest version in tmp');
-                            }
-                        });
-                    });
-                }
-            });
-            req.setTimeout(15000, () => req.destroy());
-            req.on('error', () => {});
-        }
-    }
 }
 
 function getBinaryPath() {
@@ -454,7 +429,8 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
             '--ignore-errors',
             '--extractor-retries', '2',
             '--socket-timeout', '10',
-            '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
+            '--geo-bypass',
+            '--extractor-args', 'youtube:player_client=web,default;player_skip=webpage,configs',
             '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '-g',
             '--get-title',
@@ -523,7 +499,8 @@ async function extractWithAnalyze(url, projectRoot) {
         '--no-playlist',
         '--extractor-retries', '2',
         '--socket-timeout', '10',
-        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
+        '--extractor-args', 'youtube:player_client=web,default;player_skip=webpage,configs',
+        '--geo-bypass',
         '--dump-json'
     ];
     const cookiesFile = getCookiesPath(projectRoot);
