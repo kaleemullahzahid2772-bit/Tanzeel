@@ -17,17 +17,22 @@ let downloadPromise = null;
 function init(projectRoot) {
     const isWin = process.platform === 'win32';
     const winBinary = path.join(projectRoot, 'downloader.exe');
+    const winBinary2 = path.join(projectRoot, 'yt-dlp-fixed.exe');
     const linuxBinary = path.join(projectRoot, 'yt-dlp');
 
     ytDlpPath = process.env.YTDLP_PATH;
     if (!ytDlpPath) {
-        if (isWin && fs.existsSync(winBinary)) {
-            ytDlpPath = winBinary;
-        } else if (!isWin && fs.existsSync(linuxBinary)) {
-            ytDlpPath = linuxBinary;
-            try { fs.chmodSync(linuxBinary, '755'); } catch (e) {}
+        if (isWin) {
+            if (fs.existsSync(winBinary)) ytDlpPath = winBinary;
+            else if (fs.existsSync(winBinary2)) ytDlpPath = winBinary2;
+            else ytDlpPath = winBinary;
         } else {
-            ytDlpPath = isWin ? winBinary : linuxBinary;
+            if (fs.existsSync(linuxBinary)) {
+                ytDlpPath = linuxBinary;
+                try { fs.chmodSync(linuxBinary, '755'); } catch (e) {}
+            } else {
+                ytDlpPath = linuxBinary;
+            }
         }
     }
 
@@ -47,43 +52,39 @@ function isBinaryAvailable(projectRoot) {
     }
 
     const isWin = process.platform === 'win32';
-    const targetName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
-    const tmpPath = path.join(os.tmpdir(), targetName);
+    const MIN_SIZE = isWin ? 5000000 : 1000000; // 5MB for Windows, 1MB for Linux
 
-    if (fs.existsSync(tmpPath)) {
+    function checkBinary(filePath) {
         try {
-            const stats = fs.statSync(tmpPath);
-            if (stats.size > 1000000) {
-                if (!isWin) {
-                    try { fs.chmodSync(tmpPath, '755'); } catch (e) {}
-                }
-                ytDlpPath = tmpPath;
+            const stats = fs.statSync(filePath);
+            if (stats.size > MIN_SIZE) {
+                if (!isWin) try { fs.chmodSync(filePath, '755'); } catch (e) {}
+                ytDlpPath = filePath;
                 return true;
             }
+            // Delete corrupted/broken binaries
+            try { fs.unlinkSync(filePath); } catch (e) {}
         } catch (e) {}
+        return false;
     }
 
-    const localBinary = path.join(projectRoot, targetName);
-    if (fs.existsSync(localBinary)) {
-        if (!isWin) {
-            try {
-                fs.chmodSync(localBinary, '755');
-                ytDlpPath = localBinary;
-                return true;
-            } catch (chmodErr) {
-                try {
-                    fs.copyFileSync(localBinary, tmpPath);
-                    fs.chmodSync(tmpPath, '755');
-                    ytDlpPath = tmpPath;
-                    return true;
-                } catch (copyErr) {}
-            }
-        } else {
-            ytDlpPath = localBinary;
-            return true;
+    if (isWin) {
+        // Check project root first (known-good binaries)
+        const localNames = ['yt-dlp-fixed.exe', 'downloader.exe', 'yt-dlp.exe'];
+        for (const name of localNames) {
+            if (checkBinary(path.join(projectRoot, name))) return true;
         }
+        // Then check temp directory
+        const tmpNames = ['yt-dlp-fixed.exe', 'downloader.exe', 'yt-dlp.exe'];
+        for (const name of tmpNames) {
+            if (checkBinary(path.join(os.tmpdir(), name))) return true;
+        }
+        return false;
     }
 
+    // Linux
+    if (checkBinary(path.join(projectRoot, 'yt-dlp'))) return true;
+    if (checkBinary(path.join(os.tmpdir(), 'yt-dlp'))) return true;
     return false;
 }
 
@@ -418,6 +419,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
     });
 }
 
+<<<<<<< HEAD
 async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
     const buildArgs = (noCert = false) => {
         const extractArgs = [
@@ -482,6 +484,57 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
             if (options.onSpawn && typeof options.onSpawn === 'function') {
                 options.onSpawn(proc);
             }
+=======
+async function extractWithBinary(url, projectRoot, ffmpegPath, layerLog) {
+    const isWin = process.platform === 'win32';
+    const { execFile } = require('child_process');
+
+    const extractArgs = [
+        '--no-playlist',
+        '--no-warnings',
+        '--ignore-errors',
+        '--extractor-retries', 'infinite',
+        '--throttled-rate', '100K',
+        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        '-g',
+        '--get-title',
+        '-f', 'best[ext=mp4][vcodec!*=av01]/best[ext=mp4]/best'
+    ];
+    if (ffmpegPath) {
+        try {
+            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
+            extractArgs.push('--ffmpeg-location', ffmpegDir);
+        } catch (e) {}
+    }
+    const cookiesFile = getCookiesPath(projectRoot);
+    if (cookiesFile && fs.existsSync(cookiesFile)) {
+        extractArgs.push('--cookies', cookiesFile);
+    }
+    extractArgs.push(url);
+
+    return new Promise((resolve) => {
+        execFile(ytDlpPath, extractArgs, { timeout: 60000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            if (!stdout || !stdout.trim()) {
+                if (stderr) {
+                    const errMsg = stderr.slice(0, 500);
+                    console.error('extractWithBinary stderr:', errMsg);
+                    if (layerLog) layerLog.push('Layer 1 stderr: ' + errMsg);
+                }
+                return resolve(null);
+            }
+            const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
+            const httpLines = lines.filter(l => l.startsWith('http'));
+            const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('[') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
+            const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
+            if (progressive && isValidPublicUrl(progressive)) {
+                return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
+            }
+            const noUrlMsg = 'extractWithBinary: no valid stream URL in output. Lines: ' + lines.join(' | ').slice(0, 300);
+            console.error(noUrlMsg);
+            if (layerLog) layerLog.push(noUrlMsg);
+            resolve(null);
+>>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
         });
     };
 
