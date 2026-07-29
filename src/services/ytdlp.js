@@ -419,7 +419,6 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
     });
 }
 
-<<<<<<< HEAD
 async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
     const buildArgs = (noCert = false) => {
         const extractArgs = [
@@ -484,57 +483,6 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
             if (options.onSpawn && typeof options.onSpawn === 'function') {
                 options.onSpawn(proc);
             }
-=======
-async function extractWithBinary(url, projectRoot, ffmpegPath, layerLog) {
-    const isWin = process.platform === 'win32';
-    const { execFile } = require('child_process');
-
-    const extractArgs = [
-        '--no-playlist',
-        '--no-warnings',
-        '--ignore-errors',
-        '--extractor-retries', 'infinite',
-        '--throttled-rate', '100K',
-        '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        '-g',
-        '--get-title',
-        '-f', 'best[ext=mp4][vcodec!*=av01]/best[ext=mp4]/best'
-    ];
-    if (ffmpegPath) {
-        try {
-            const ffmpegDir = fs.statSync(ffmpegPath).isDirectory() ? ffmpegPath : path.dirname(ffmpegPath);
-            extractArgs.push('--ffmpeg-location', ffmpegDir);
-        } catch (e) {}
-    }
-    const cookiesFile = getCookiesPath(projectRoot);
-    if (cookiesFile && fs.existsSync(cookiesFile)) {
-        extractArgs.push('--cookies', cookiesFile);
-    }
-    extractArgs.push(url);
-
-    return new Promise((resolve) => {
-        execFile(ytDlpPath, extractArgs, { timeout: 60000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (!stdout || !stdout.trim()) {
-                if (stderr) {
-                    const errMsg = stderr.slice(0, 500);
-                    console.error('extractWithBinary stderr:', errMsg);
-                    if (layerLog) layerLog.push('Layer 1 stderr: ' + errMsg);
-                }
-                return resolve(null);
-            }
-            const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
-            const httpLines = lines.filter(l => l.startsWith('http'));
-            const titleLine = lines.find(l => !l.startsWith('http') && !l.startsWith('[') && !l.startsWith('WARNING:') && !l.startsWith('ERROR:'));
-            const progressive = httpLines.find(l => !l.includes('.m3u8')) || httpLines[httpLines.length - 1];
-            if (progressive && isValidPublicUrl(progressive)) {
-                return resolve({ url: progressive, title: titleLine || 'Tanzeel_Video' });
-            }
-            const noUrlMsg = 'extractWithBinary: no valid stream URL in output. Lines: ' + lines.join(' | ').slice(0, 300);
-            console.error(noUrlMsg);
-            if (layerLog) layerLog.push(noUrlMsg);
-            resolve(null);
->>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
         });
     };
 
