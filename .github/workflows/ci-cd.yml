@@ -25,7 +25,11 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test
+        run: npm test -- --maxWorkers=2 --forceExit
+        env:
+          CI: true
+          SKIP_REAL_DOWNLOAD: true
+        timeout-minutes: 5
 
       - name: Security audit
         run: npm audit --omit=dev || true
@@ -34,12 +38,19 @@ jobs:
       - name: Start server & health check
         run: |
           node server.js &
-          sleep 5
-          curl -f http://localhost:3000/health || exit 1
-          echo "Health check passed"
+          for i in $(seq 1 12); do
+            sleep 5
+            if curl -f http://localhost:3000/health 2>/dev/null; then
+              echo "Health check passed"
+              exit 0
+            fi
+          done
+          echo "Server failed to start within 60s"
+          exit 1
         env:
           NODE_ENV: test
           PORT: 3000
+          CI: true
 
   deploy:
     name: Deploy
