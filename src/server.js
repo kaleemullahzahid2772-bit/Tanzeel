@@ -41,6 +41,7 @@ const allowedOrigins = [
     'https://tanzeel.vercel.app',
     'https://tanzeel.pro',
     'https://tanzeel.onrender.com',
+    'https://tanzeel-api.up.railway.app',
     'http://localhost:3000',
     'http://localhost:5173'
 ];
