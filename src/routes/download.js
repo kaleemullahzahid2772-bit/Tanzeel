@@ -41,6 +41,7 @@ function createDownloadRouter(projectRoot) {
 
         let isAborted = false;
         let spawnedChildProc = null;
+        const layerLog = [];
 
         const onClientClose = () => {
             if (isAborted) return;
@@ -77,7 +78,8 @@ function createDownloadRouter(projectRoot) {
                 res.status(504).json({
                     success: false,
                     error: 'REQUEST_TIMEOUT',
-                    message: 'Download request timed out.'
+                    message: 'Download request timed out.',
+                    layerLog
                 });
             }
         }, 35000);
@@ -111,6 +113,7 @@ function createDownloadRouter(projectRoot) {
                             log.warn(`[Layer 1: yt-dlp binary] No stream URL extracted for ID: ${downloadId}`);
                         }
                     } catch (binErr) {
+                        layerLog.push({ layer: 1, name: 'yt-dlp binary', error: binErr.message });
                         log.warn(`[Layer 1: yt-dlp binary] Exception: ${binErr.message}`);
                     }
                 }
@@ -134,6 +137,7 @@ function createDownloadRouter(projectRoot) {
                         log.warn(`[Layer 2: ytdl-core] No stream URL extracted for ID: ${downloadId}`);
                     }
                 } catch (ytdlErr) {
+                    layerLog.push({ layer: 2, name: 'ytdl-core', error: ytdlErr.message });
                     log.warn(`[Layer 2: ytdl-core] Exception: ${ytdlErr.message}`);
                 }
             }
@@ -156,6 +160,7 @@ function createDownloadRouter(projectRoot) {
                         log.warn(`[Layer 3: Cobalt] No stream URL extracted for ID: ${downloadId}`);
                     }
                 } catch (cobaltErr) {
+                    layerLog.push({ layer: 3, name: 'Cobalt', error: cobaltErr.message });
                     log.warn(`[Layer 3: Cobalt] Exception: ${cobaltErr.message}`);
                 }
             }
@@ -178,6 +183,7 @@ function createDownloadRouter(projectRoot) {
                         log.warn(`[Layer 4: Piped] No stream URL extracted for ID: ${downloadId}`);
                     }
                 } catch (pipedErr) {
+                    layerLog.push({ layer: 4, name: 'Piped', error: pipedErr.message });
                     log.warn(`[Layer 4: Piped] Exception: ${pipedErr.message}`);
                 }
             }
@@ -200,6 +206,7 @@ function createDownloadRouter(projectRoot) {
                         log.warn(`[Layer 5: Invidious] No stream URL extracted for ID: ${downloadId}`);
                     }
                 } catch (invErr) {
+                    layerLog.push({ layer: 5, name: 'Invidious', error: invErr.message });
                     log.warn(`[Layer 5: Invidious] Exception: ${invErr.message}`);
                 }
             }
@@ -223,7 +230,8 @@ function createDownloadRouter(projectRoot) {
             res.status(400).json({
                 success: false,
                 error: 'EXTRACTION_FAILED',
-                message: 'The source did not provide a downloadable media stream.'
+                message: 'The source did not provide a downloadable media stream.',
+                layerLog
             });
         } catch (globalErr) {
             clearTimeout(requestTimeoutTimer);

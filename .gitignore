@@ -36,3 +36,4 @@ test_*
 *.swp
 .DS_Store
 Thumbs.db
+server.err

@@ -39,6 +39,31 @@ function init(projectRoot) {
     try {
         ytdlCore = require('@distube/ytdl-core');
     } catch (e) {}
+
+    // Startup: download fresh yt-dlp binary to tmp so we always use the latest version
+    if (!isWin) {
+        const tmpTarget = path.join(os.tmpdir(), 'yt-dlp');
+        const needsDownload = !fs.existsSync(tmpTarget) || (Date.now() - fs.statSync(tmpTarget).mtimeMs) > 86400000;
+        if (needsDownload) {
+            log.info('Downloading latest yt-dlp binary on startup...');
+            const req = https.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux', (res) => {
+                if (res.statusCode === 200) {
+                    const file = fs.createWriteStream(tmpTarget);
+                    res.pipe(file);
+                    file.on('finish', () => {
+                        file.close(() => {
+                            try { fs.chmodSync(tmpTarget, '755'); } catch (e) {}
+                            if (fs.statSync(tmpTarget).size > 1000000) {
+                                log.info('yt-dlp binary updated to latest version in tmp');
+                            }
+                        });
+                    });
+                }
+            });
+            req.setTimeout(15000, () => req.destroy());
+            req.on('error', () => {});
+        }
+    }
 }
 
 function getBinaryPath() {
@@ -46,11 +71,6 @@ function getBinaryPath() {
 }
 
 function isBinaryAvailable(projectRoot) {
-    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
-        ytDlpPath = process.env.YTDLP_PATH;
-        return true;
-    }
-
     const isWin = process.platform === 'win32';
     const MIN_SIZE = isWin ? 5000000 : 1000000; // 5MB for Windows, 1MB for Linux
 
@@ -62,10 +82,17 @@ function isBinaryAvailable(projectRoot) {
                 ytDlpPath = filePath;
                 return true;
             }
-            // Delete corrupted/broken binaries
             try { fs.unlinkSync(filePath); } catch (e) {}
         } catch (e) {}
         return false;
+    }
+
+    // Prefer tmp binary (freshly updated at startup)
+    if (!isWin && checkBinary(path.join(os.tmpdir(), 'yt-dlp'))) return true;
+
+    if (process.env.YTDLP_PATH && fs.existsSync(process.env.YTDLP_PATH)) {
+        ytDlpPath = process.env.YTDLP_PATH;
+        return true;
     }
 
     if (isWin) {
@@ -427,11 +454,11 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
             '--ignore-errors',
             '--extractor-retries', '2',
             '--socket-timeout', '10',
-            '--allow-unplayable-formats',
             '--extractor-args', 'youtube:player_client=android,web;player_skip=tv_embedded',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '-g',
             '--get-title',
-            '-f', 'best[ext=mp4][vcodec!*=av01][filesize_approx<2G]/best[ext=mp4]/best'
+            '-f', 'best[ext=mp4][vcodec!*=av01]/best[ext=mp4]/best'
         ];
         if (noCert) {
             extractArgs.push('--no-check-certificate');

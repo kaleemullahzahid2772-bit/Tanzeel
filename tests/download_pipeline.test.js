@@ -51,7 +51,8 @@ describe('End-to-End Download Pipeline & Validation Tests', () => {
             expect(res.body).toEqual({
                 success: false,
                 error: 'EXTRACTION_FAILED',
-                message: 'The source did not provide a downloadable media stream.'
+                message: 'The source did not provide a downloadable media stream.',
+                layerLog: expect.any(Array)
             });
         });
 
