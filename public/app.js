@@ -371,8 +371,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             try {
+<<<<<<< HEAD
                 const res = await fetch(getApiUrl(`/progress?id=${downloadId}`), { signal });
                 if (res.ok) {
+=======
+                pollCount++;
+                const res = await fetch(getApiUrl(`/progress?id=${downloadId}`));
+                if (!res.ok) {
+                    failedPolls++;
+                    if (res.status === 429) {
+                        // Rate limited - back off polling
+                        clearInterval(pollInterval);
+                        setTimeout(() => {
+                            resetBtnState("Download in progress. Check your Downloads folder.", "#059669");
+                        }, 500);
+                        return;
+                    }
+                } else {
+>>>>>>> 46e37a9320364250e467a23599b14232dcdd4d0c
                     const data = await res.json();
                     if (data.success && data.data) {
                         const info = data.data;
