@@ -439,7 +439,8 @@ async function extractWithBinary(url, projectRoot, ffmpegPath, options = {}) {
             '--extractor-retries', '2',
             '--socket-timeout', '10',
             '--geo-bypass',
-            '--extractor-args', 'youtube:player_client=web_embedded,web;player_skip=webpage,configs',
+            '--no-check-certificate',
+            '--extractor-args', 'youtube:player_client=android,android_vr,tv_embedded',
             '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '-g',
             '--get-title',
@@ -508,7 +509,7 @@ async function extractWithAnalyze(url, projectRoot) {
         '--no-playlist',
         '--extractor-retries', '2',
         '--socket-timeout', '10',
-        '--extractor-args', 'youtube:player_client=web_embedded,web;player_skip=webpage,configs',
+        '--extractor-args', 'youtube:player_client=android,android_vr,tv_embedded',
         '--geo-bypass',
         '--dump-json'
     ];
