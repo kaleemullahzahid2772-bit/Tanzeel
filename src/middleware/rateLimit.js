@@ -35,7 +35,7 @@ function cleanup(map) {
 }
 
 const rateLimiter = createLimiter(generalMap, 40);
-const progressRateLimiter = createLimiter(progressMap, 180);
+const progressRateLimiter = createLimiter(progressMap, 600);
 
 setInterval(() => {
     cleanup(generalMap);
