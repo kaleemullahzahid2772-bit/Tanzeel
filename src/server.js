@@ -40,6 +40,7 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
     'https://tanzeel.vercel.app',
     'https://tanzeel.pro',
+    'https://www.tanzeel.pro',
     'https://tanzeel.onrender.com',
     'https://tanzeel-production.up.railway.app',
     'http://localhost:3000',
