@@ -1,4 +1,4 @@
-const { normalizeYouTubeUrl, extractYouTubeId, extractUrlFromQuery } = require('../utils/url');
+const { normalizeYouTubeUrl, extractYouTubeId, extractUrlFromQuery, expandRedirectUrl } = require('../utils/url');
 const { isValidPublicUrl } = require('../utils/validate');
 const { sanitizeFilename } = require('../utils/filename');
 const { setProgress, deleteProgress } = require('../utils/progress');
@@ -26,8 +26,9 @@ function createDownloadRouter(projectRoot) {
             return res.status(400).json({ success: false, error: 'INVALID_URL', message: 'Invalid URL provided' });
         }
 
-        const rawUrl = url.trim();
-        url = normalizeYouTubeUrl(rawUrl);
+        let rawUrl = url.trim();
+        rawUrl = normalizeYouTubeUrl(rawUrl);
+        url = await expandRedirectUrl(rawUrl);
         const downloadId = (id && typeof id === 'string') ? id : Math.random().toString(36).substring(2, 10);
 
         log.info(`[Download Request Received] ID: ${downloadId}`, {
@@ -137,7 +138,7 @@ function createDownloadRouter(projectRoot) {
                 } else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
                     platformStream = await getTwitterStreamUrl(url);
                 } else if (lowerUrl.includes('facebook.com') || lowerUrl.includes('fb.watch')) {
-                    platformStream = await getFacebookStreamUrl(url);
+                    platformStream = await getFacebookStreamUrl(url, projectRoot, ffmpegPath);
                 }
 
                 if (platformStream && platformStream.url && isValidPublicUrl(platformStream.url) && !isAborted) {
