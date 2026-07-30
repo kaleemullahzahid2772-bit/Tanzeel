@@ -96,6 +96,8 @@ function isBinaryAvailable(projectRoot) {
     // Linux
     if (checkBinary(path.join(projectRoot, 'yt-dlp'))) return true;
     if (checkBinary(path.join(os.tmpdir(), 'yt-dlp'))) return true;
+    if (checkBinary('/usr/bin/yt-dlp')) return true;
+    if (checkBinary('/usr/local/bin/yt-dlp')) return true;
     return false;
 }
 
