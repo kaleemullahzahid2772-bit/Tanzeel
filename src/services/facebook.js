@@ -39,16 +39,25 @@ async function scrapeFacebookDirectStream(videoUrl, redirectCount = 0) {
                 let html = '';
                 res.on('data', chunk => html += chunk);
                 res.on('end', () => {
-                    const hdMatch = html.match(/hd_src:"([^"]+)"/) || html.match(/"playable_url_quality_hd":"([^"]+)"/);
-                    const sdMatch = html.match(/sd_src:"([^"]+)"/) || html.match(/"playable_url":"([^"]+)"/);
+                    const hdMatch = html.match(/hd_src:"([^"]+)"/) ||
+                                    html.match(/"playable_url_quality_hd":"([^"]+)"/) ||
+                                    html.match(/"browser_native_hd_url":"([^"]+)"/) ||
+                                    html.match(/hd_src_no_ratelimit:"([^"]+)"/);
+                    const sdMatch = html.match(/sd_src:"([^"]+)"/) ||
+                                    html.match(/"playable_url":"([^"]+)"/) ||
+                                    html.match(/"browser_native_sd_url":"([^"]+)"/) ||
+                                    html.match(/sd_src_no_ratelimit:"([^"]+)"/) ||
+                                    html.match(/"base_url":"([^"]+fbcdn\.net[^"]+)"/);
                     let rawUrl = (hdMatch && hdMatch[1]) || (sdMatch && sdMatch[1]);
                     if (rawUrl) {
                         try {
                             rawUrl = JSON.parse(`"${rawUrl}"`);
                         } catch (e) {
-                            rawUrl = rawUrl.replace(/\\/g, '');
+                            rawUrl = rawUrl.replace(/\\/g, '').replace(/&amp;/g, '&');
                         }
-                        return resolve(rawUrl);
+                        if (rawUrl && (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))) {
+                            return resolve(rawUrl);
+                        }
                     }
                     resolve(null);
                 });
