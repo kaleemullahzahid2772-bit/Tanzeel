@@ -66,7 +66,6 @@ function isBinaryAvailable(projectRoot) {
                 ytDlpPath = filePath;
                 return true;
             }
-            try { fs.unlinkSync(filePath); } catch (e) {}
         } catch (e) {}
         return false;
     }
@@ -93,11 +92,30 @@ function isBinaryAvailable(projectRoot) {
         return false;
     }
 
-    // Linux
+    // Linux / Unix: check project root, tmp, standard system paths & PATH environment variable
     if (checkBinary(path.join(projectRoot, 'yt-dlp'))) return true;
     if (checkBinary(path.join(os.tmpdir(), 'yt-dlp'))) return true;
     if (checkBinary('/usr/bin/yt-dlp')) return true;
     if (checkBinary('/usr/local/bin/yt-dlp')) return true;
+
+    // Check system PATH (covers Nixpacks on Railway, Docker, etc.)
+    if (process.env.PATH) {
+        const pathDirs = process.env.PATH.split(path.delimiter || ':');
+        for (const dir of pathDirs) {
+            if (dir && checkBinary(path.join(dir, 'yt-dlp'))) return true;
+        }
+    }
+
+    // Try system 'which yt-dlp'
+    try {
+        const { execFileSync } = require('child_process');
+        const whichOutput = execFileSync('which', ['yt-dlp'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        if (whichOutput && fs.existsSync(whichOutput)) {
+            ytDlpPath = whichOutput;
+            return true;
+        }
+    } catch (e) {}
+
     return false;
 }
 
@@ -297,12 +315,28 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
         try {
             const parsedUrl = new URL(streamUrl);
             const httpLib = parsedUrl.protocol === 'http:' ? http : https;
+            const hostname = parsedUrl.hostname.toLowerCase();
+
             const headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': '*/*'
             };
-            if (!parsedUrl.hostname.includes('googlevideo.com')) {
-                headers['Referer'] = 'https://www.youtube.com/';
+
+            let referer = null;
+            if (hostname.includes('fbcdn.net') || hostname.includes('facebook.com')) {
+                referer = 'https://www.facebook.com/';
+            } else if (hostname.includes('instagram.com') || hostname.includes('cdninstagram.com')) {
+                referer = 'https://www.instagram.com/';
+            } else if (hostname.includes('tiktok.com') || hostname.includes('tiktokcdn.com')) {
+                referer = 'https://www.tiktok.com/';
+            } else if (hostname.includes('twitter.com') || hostname.includes('x.com') || hostname.includes('twimg.com')) {
+                referer = 'https://x.com/';
+            } else if (!hostname.includes('googlevideo.com')) {
+                referer = 'https://www.youtube.com/';
+            }
+
+            if (referer) {
+                headers['Referer'] = referer;
             }
 
             const options = {
@@ -312,7 +346,7 @@ function proxyVideoStream(streamUrl, safeTitle, res, downloadId, ffmpegPath, red
                 headers: headers
             };
 
-            if (parsedUrl.protocol === 'https:' && allowInsecureSsl) {
+            if (parsedUrl.protocol === 'https:') {
                 options.agent = new https.Agent({ rejectUnauthorized: false });
             }
 
