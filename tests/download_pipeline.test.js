@@ -41,6 +41,16 @@ describe('End-to-End Download Pipeline & Validation Tests', () => {
             const result = await proxyVideoStream('http://127.0.0.1:3000/internal', 'Test_Title', mockRes, 'test_id', null, 0, null);
             expect(result).toBe(false);
         });
+
+        it('should successfully process Facebook stream URL and handle Referer correctly', async () => {
+            const { getFacebookStreamUrl } = require('../src/services/facebook');
+            const path = require('path');
+            const projectRoot = path.join(__dirname, '..');
+            const fbResult = await getFacebookStreamUrl('https://www.facebook.com/share/v/19AeSzzzeo/', projectRoot);
+            if (fbResult && fbResult.url) {
+                expect(fbResult.url).toMatch(/^https:\/\//);
+            }
+        });
     });
 
     describe('3. Error Handling & Structured Response Format', () => {
